@@ -1,0 +1,65 @@
+# Dependencies
+node_modules
+npm-debug.log
+yarn-error.log
+package-lock.json
+
+# Testing
+tests
+coverage
+.nyc_output
+*.test.js
+*.spec.js
+jest.config.js
+
+# Development files
+.env
+.env.local
+.env.*.local
+.env.example
+nodemon.json
+
+# Git
+.git
+.gitignore
+.github
+
+# IDEs
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Kiro specs and documentation
+.kiro
+*.md
+PHASE_*.md
+PROJECT_PROGRESS.md
+MASTER_DOCUMENTATION.md
+
+# Logs (will be created in container)
+logs/*.log
+
+# Build artifacts
+dist
+build
+tmp
+temp
+
+# CI/CD
+.travis.yml
+.gitlab-ci.yml
+.circleci
+Jenkinsfile
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Misc
+.editorconfig
+.eslintrc*
+.prettierrc*
