@@ -315,5 +315,3 @@ docker-compose down
 
 ---
 *Vexaro Courier Platform - June 2026*
-#   c l o n e - v e x a r o - b a c k - e n d  
- "# new-vexaro-backend" 
