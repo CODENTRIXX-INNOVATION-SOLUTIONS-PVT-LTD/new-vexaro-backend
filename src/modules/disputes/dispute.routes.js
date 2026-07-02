@@ -13,6 +13,7 @@ router.post('/weight-dispute', requireRole(UserRole.SUPER_ADMIN), validateReques
 router.get('/weight-dispute', validateRequest({ query: schemas.listWeightDisputesQuerySchema }), c.listWeightDisputes);
 router.patch('/weight-dispute/:id/resolve', requireRole(UserRole.SUPER_ADMIN, UserRole.DISTRIBUTOR), validateRequest({ params: schemas.disputeIdParamsSchema, body: schemas.resolveWeightDisputeSchema }), c.resolveWeightDispute);
 router.patch('/weight-dispute/:id/proof', requireRole(UserRole.MERCHANT), validateRequest({ params: schemas.disputeIdParamsSchema, body: schemas.submitDisputeProofSchema }), c.submitDisputeProof);
+router.post('/weight-dispute/:id/comments', validateRequest({ params: schemas.disputeIdParamsSchema, body: schemas.addCommentSchema }), c.addComment);
 
 // Standard Disputes
 router.get('/', validateRequest({ query: schemas.listQuerySchema }), c.listDisputes);

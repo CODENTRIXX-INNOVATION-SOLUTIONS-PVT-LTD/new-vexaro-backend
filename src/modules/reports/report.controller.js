@@ -211,6 +211,125 @@ const downloadExportFile = async (req, res) => {
   res.download(filePath);
 };
 
+// ─── Stub Methods (to be implemented) ─────────────────────────────────────────
+
+const getReportsOverview = async (req, res) => {
+  success(res, 'Reports overview', {
+    totalShipments: 0,
+    totalRevenue: 0,
+    totalMerchants: 0,
+    totalDistributors: 0,
+  });
+};
+
+const getDistributorInsights = async (req, res) => {
+  success(res, 'Distributor insights', { insights: [] });
+};
+
+const getTopDistributors = async (req, res) => {
+  success(res, 'Top distributors', { distributors: [] });
+};
+
+const getRegionalPerformance = async (req, res) => {
+  success(res, 'Regional performance', { regions: [] });
+};
+
+const getDistributorActivities = async (req, res) => {
+  success(res, 'Distributor activities', { activities: [] });
+};
+
+const getDistributorPerformance = async (req, res) => {
+  success(res, 'Distributor performance', { performance: [] });
+};
+
+const getRegionalDistribution = async (req, res) => {
+  success(res, 'Regional distribution', { distribution: [] });
+};
+
+const getMerchantSummary = async (req, res) => {
+  success(res, 'Merchant summary', {
+    totalMerchants: 0,
+    activeMerchants: 0,
+    newMerchants: 0,
+  });
+};
+
+const getMerchantInsights = async (req, res) => {
+  success(res, 'Merchant insights', { insights: [] });
+};
+
+const getTopMerchants = async (req, res) => {
+  success(res, 'Top merchants', { merchants: [] });
+};
+
+const getMerchantsByCategory = async (req, res) => {
+  success(res, 'Merchants by category', { categories: [] });
+};
+
+const getRecentMerchants = async (req, res) => {
+  success(res, 'Recent merchants', { merchants: [] });
+};
+
+const getMerchantGrowth = async (req, res) => {
+  success(res, 'Merchant growth', { growth: [] });
+};
+
+const getMerchantCategoryDistribution = async (req, res) => {
+  success(res, 'Merchant category distribution', { distribution: [] });
+};
+
+const getRevenueSummary = async (req, res) => {
+  success(res, 'Revenue summary', {
+    totalRevenue: 0,
+    monthlyRevenue: 0,
+    yearlyRevenue: 0,
+  });
+};
+
+const getRevenueInsights = async (req, res) => {
+  success(res, 'Revenue insights', { insights: [] });
+};
+
+const getTopRevenueMerchants = async (req, res) => {
+  success(res, 'Top revenue merchants', { merchants: [] });
+};
+
+const getRevenueByPaymentMethod = async (req, res) => {
+  success(res, 'Revenue by payment method', { methods: [] });
+};
+
+const getRecentRevenueTransactions = async (req, res) => {
+  success(res, 'Recent revenue transactions', { transactions: [] });
+};
+
+const getRevenueTrend = async (req, res) => {
+  success(res, 'Revenue trend', { trend: [] });
+};
+
+const getRevenueSource = async (req, res) => {
+  success(res, 'Revenue source', { sources: [] });
+};
+
+const getShipmentSummary = async (req, res) => {
+  success(res, 'Shipment summary', {
+    totalShipments: 0,
+    deliveredShipments: 0,
+    pendingShipments: 0,
+  });
+};
+
+const getShipmentTrend = async (req, res) => {
+  success(res, 'Shipment trend', { trend: [] });
+};
+
+const getShipmentStatus = async (req, res) => {
+  success(res, 'Shipment status', { statuses: [] });
+};
+
+const getTopMerchantsByShipments = async (req, res) => {
+  success(res, 'Top merchants by shipments', { merchants: [] });
+};
+
 module.exports = {
   getShipmentsReport,
   getRevenueReport,
@@ -224,4 +343,30 @@ module.exports = {
   createExportJob,
   getExportJobStatus,
   downloadExportFile,
+  // New stub methods
+  getReportsOverview,
+  getDistributorInsights,
+  getTopDistributors,
+  getRegionalPerformance,
+  getDistributorActivities,
+  getDistributorPerformance,
+  getRegionalDistribution,
+  getMerchantSummary,
+  getMerchantInsights,
+  getTopMerchants,
+  getMerchantsByCategory,
+  getRecentMerchants,
+  getMerchantGrowth,
+  getMerchantCategoryDistribution,
+  getRevenueSummary,
+  getRevenueInsights,
+  getTopRevenueMerchants,
+  getRevenueByPaymentMethod,
+  getRecentRevenueTransactions,
+  getRevenueTrend,
+  getRevenueSource,
+  getShipmentSummary,
+  getShipmentTrend,
+  getShipmentStatus,
+  getTopMerchantsByShipments,
 };

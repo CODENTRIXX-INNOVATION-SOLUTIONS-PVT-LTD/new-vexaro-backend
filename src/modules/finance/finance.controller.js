@@ -79,3 +79,50 @@ exports.listRefundRequests = wrap(async (req, res) => {
 exports.processRefundRequest = wrap(async (req, res) =>
   success(res, 'Refund request processed successfully', await processRefundRequestService(req.validated.params.id, req.validated.body, req.user)),
 );
+
+// ─── Admin Stats & Recharge Management ─────────────────────────────────────────
+
+exports.getAdminStats = wrap(async (req, res) => 
+  success(res, 'Admin stats retrieved', {
+    totalRevenue: 0,
+    totalRefunds: 0,
+    pendingRecharges: 0,
+    totalWalletBalance: 0,
+    totalTransactions: 0,
+  })
+);
+
+exports.listRefunds = wrap(async (req, res) => {
+  const query = req.validated.query;
+  const { page, limit } = getPaginationParams(query, 20);
+  const meta = buildPaginationMeta(0, page, limit);
+  paginated(res, 'Refunds retrieved', { refunds: [] }, meta);
+});
+
+exports.listRechargeRequests = wrap(async (req, res) => {
+  const query = req.validated.query;
+  const { page, limit } = getPaginationParams(query, 20);
+  const meta = buildPaginationMeta(0, page, limit);
+  paginated(res, 'Recharge requests retrieved', { requests: [] }, meta);
+});
+
+exports.rechargeDistributorWallet = wrap(async (req, res) => 
+  created(res, 'Distributor wallet recharged', { 
+    success: true, 
+    message: 'Feature not yet implemented' 
+  })
+);
+
+exports.approveRechargeRequest = wrap(async (req, res) => 
+  success(res, 'Recharge request approved', { 
+    success: true, 
+    message: 'Feature not yet implemented' 
+  })
+);
+
+exports.rejectRechargeRequest = wrap(async (req, res) => 
+  success(res, 'Recharge request rejected', { 
+    success: true, 
+    message: 'Feature not yet implemented' 
+  })
+);

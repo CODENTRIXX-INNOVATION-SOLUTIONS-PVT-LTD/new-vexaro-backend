@@ -40,6 +40,23 @@ const weightDisputeSchema = new mongoose.Schema(
       type: Date,
       required: true,
     },
+    comments: [{
+      userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
+      },
+      comment: {
+        type: String,
+        required: true,
+        trim: true,
+        maxlength: 2000,
+      },
+      createdAt: {
+        type: Date,
+        default: Date.now,
+      },
+    }],
   },
   { timestamps: true },
 );

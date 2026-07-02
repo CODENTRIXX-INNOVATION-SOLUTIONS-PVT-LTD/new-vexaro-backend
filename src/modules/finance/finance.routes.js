@@ -77,4 +77,18 @@ router.get('/payments', validateRequest({ query: schemas.paymentListQuerySchema 
 // GET  /api/finance/payments/:id — single payment detail (role-scoped)
 router.get('/payments/:id', validateRequest({ params: schemas.financeIdParamsSchema }), rzp.getPayment);
 
+// ── Admin Stats & Recharge Management ─────────────────────────────────────────
+// GET  /api/finance/admin-stats — SA: admin payment statistics
+router.get('/admin-stats', requireRole(UserRole.SUPER_ADMIN), validateRequest({ query: emptyObjectSchema }), c.getAdminStats);
+// GET  /api/finance/refunds — SA/Dist: list refund records
+router.get('/refunds', requireRole(UserRole.SUPER_ADMIN, UserRole.DISTRIBUTOR), validateRequest({ query: schemas.listQuerySchema }), c.listRefunds);
+// GET  /api/finance/recharge-requests — SA: list distributor recharge requests
+router.get('/recharge-requests', requireRole(UserRole.SUPER_ADMIN), validateRequest({ query: schemas.listQuerySchema }), c.listRechargeRequests);
+// POST /api/finance/recharge-distributor — SA: recharge distributor wallet
+router.post('/recharge-distributor', requireRole(UserRole.SUPER_ADMIN), validateRequest({ body: schemas.topupSchema }), c.rechargeDistributorWallet);
+// POST /api/finance/recharge-requests/:id/approve — SA: approve recharge request
+router.post('/recharge-requests/:id/approve', requireRole(UserRole.SUPER_ADMIN), validateRequest({ params: schemas.financeIdParamsSchema, body: emptyObjectSchema }), c.approveRechargeRequest);
+// POST /api/finance/recharge-requests/:id/reject — SA: reject recharge request
+router.post('/recharge-requests/:id/reject', requireRole(UserRole.SUPER_ADMIN), validateRequest({ params: schemas.financeIdParamsSchema, body: schemas.processRefundRequestSchema }), c.rejectRechargeRequest);
+
 module.exports = router;

@@ -105,8 +105,73 @@ const submitDisputeProofService = async (id, dto, caller) => {
   return dispute;
 };
 
+const addCommentService = async (id, dto, caller) => {
+  const { comment } = dto;
+  
+  if (!comment || comment.trim() === '') {
+    throw Object.assign(new Error('Comment is required'), { statusCode: 400 });
+  }
+
+  const dispute = await disputeRepository.findWeightById(id);
+  if (!dispute) {
+    throw Object.assign(new Error('Weight dispute not found'), { statusCode: 404 });
+  }
+
+  // Check if user has permission to comment (involved parties or admin/distributor)
+  const shipment = await shipmentRepository.findById(dispute.shipmentId);
+  if (!shipment) {
+    throw Object.assign(new Error('Associated shipment not found'), { statusCode: 404 });
+  }
+
+  const isInvolved = 
+    shipment.merchantId.toString() === caller.userId ||
+    (shipment.distributorId && shipment.distributorId.toString() === caller.userId) ||
+    caller.role === UserRole.SUPER_ADMIN ||
+    caller.role === UserRole.DISTRIBUTOR;
+
+  if (!isInvolved) {
+    throw Object.assign(new Error('Access denied. You do not have permission to comment on this dispute'), { statusCode: 403 });
+  }
+
+  const newComment = {
+    userId: caller.userId,
+    comment: comment.trim(),
+    createdAt: new Date(),
+  };
+
+  dispute.comments.push(newComment);
+  await disputeRepository.saveWeight(dispute);
+
+  // Notify relevant parties
+  try {
+    const { createNotification } = require('../../notifications/notification.service');
+    const notificationRecipients = [];
+    
+    if (shipment.merchantId.toString() !== caller.userId) {
+      notificationRecipients.push(shipment.merchantId);
+    }
+    if (shipment.distributorId && shipment.distributorId.toString() !== caller.userId) {
+      notificationRecipients.push(shipment.distributorId);
+    }
+
+    for (const recipientId of notificationRecipients) {
+      await createNotification(recipientId, {
+        title: 'New Comment on Weight Dispute',
+        message: `A new comment has been added to the weight dispute for AWB ${shipment.awb}.`,
+        type: 'DISPUTE',
+      });
+    }
+  } catch (notifErr) {
+    console.error('Failed to send notification:', notifErr);
+  }
+
+  // Return the added comment
+  return dispute.comments[dispute.comments.length - 1];
+};
+
 module.exports = {
   raiseWeightDisputeService,
   listWeightDisputesService,
   submitDisputeProofService,
+  addCommentService,
 };

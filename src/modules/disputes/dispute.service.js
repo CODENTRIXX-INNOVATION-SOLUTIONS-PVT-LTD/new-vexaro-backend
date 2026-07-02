@@ -10,6 +10,7 @@ const {
   raiseWeightDisputeService,
   listWeightDisputesService,
   submitDisputeProofService,
+  addCommentService,
 } = require('./services/weight-dispute.service');
 
 const {
@@ -26,4 +27,5 @@ module.exports = {
   listWeightDisputesService,
   resolveWeightDisputeService,
   submitDisputeProofService,
+  addCommentService,
 };

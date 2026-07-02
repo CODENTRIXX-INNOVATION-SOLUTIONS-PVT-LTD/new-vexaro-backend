@@ -67,4 +67,41 @@ router.get(
   wrap(reportController.downloadExportFile)
 );
 
+// ─── New Report Endpoints ──────────────────────────────────────────────────────
+
+// Overview
+router.get('/overview', validateRequest({ query: schemas.reportQueryDto }), wrap(reportController.getReportsOverview));
+
+// Distributor Reports
+router.get('/distributor-insights', requireRole(UserRole.SUPER_ADMIN, UserRole.DISTRIBUTOR), validateRequest({ query: schemas.reportQueryDto }), wrap(reportController.getDistributorInsights));
+router.get('/top-distributors', requireRole(UserRole.SUPER_ADMIN), validateRequest({ query: schemas.reportQueryDto }), wrap(reportController.getTopDistributors));
+router.get('/regional-performance', requireRole(UserRole.SUPER_ADMIN), validateRequest({ query: schemas.reportQueryDto }), wrap(reportController.getRegionalPerformance));
+router.get('/distributor-activities', requireRole(UserRole.SUPER_ADMIN), validateRequest({ query: schemas.reportQueryDto }), wrap(reportController.getDistributorActivities));
+router.get('/distributor-performance', requireRole(UserRole.SUPER_ADMIN), validateRequest({ query: schemas.reportQueryDto }), wrap(reportController.getDistributorPerformance));
+router.get('/regional-distribution', requireRole(UserRole.SUPER_ADMIN), validateRequest({ query: schemas.reportQueryDto }), wrap(reportController.getRegionalDistribution));
+
+// Merchant Reports
+router.get('/merchant-summary', validateRequest({ query: schemas.reportQueryDto }), wrap(reportController.getMerchantSummary));
+router.get('/merchant-insights', validateRequest({ query: schemas.reportQueryDto }), wrap(reportController.getMerchantInsights));
+router.get('/top-merchants', requireRole(UserRole.SUPER_ADMIN, UserRole.DISTRIBUTOR), validateRequest({ query: schemas.reportQueryDto }), wrap(reportController.getTopMerchants));
+router.get('/merchants-by-category', requireRole(UserRole.SUPER_ADMIN), validateRequest({ query: schemas.reportQueryDto }), wrap(reportController.getMerchantsByCategory));
+router.get('/recent-merchants', requireRole(UserRole.SUPER_ADMIN, UserRole.DISTRIBUTOR), validateRequest({ query: schemas.reportQueryDto }), wrap(reportController.getRecentMerchants));
+router.get('/merchant-growth', requireRole(UserRole.SUPER_ADMIN), validateRequest({ query: schemas.reportQueryDto }), wrap(reportController.getMerchantGrowth));
+router.get('/merchant-category-distribution', requireRole(UserRole.SUPER_ADMIN), validateRequest({ query: schemas.reportQueryDto }), wrap(reportController.getMerchantCategoryDistribution));
+
+// Revenue Reports
+router.get('/revenue-summary', validateRequest({ query: schemas.reportQueryDto }), wrap(reportController.getRevenueSummary));
+router.get('/revenue-insights', validateRequest({ query: schemas.reportQueryDto }), wrap(reportController.getRevenueInsights));
+router.get('/top-revenue-merchants', requireRole(UserRole.SUPER_ADMIN, UserRole.DISTRIBUTOR), validateRequest({ query: schemas.reportQueryDto }), wrap(reportController.getTopRevenueMerchants));
+router.get('/revenue-by-payment-method', requireRole(UserRole.SUPER_ADMIN), validateRequest({ query: schemas.reportQueryDto }), wrap(reportController.getRevenueByPaymentMethod));
+router.get('/recent-revenue-transactions', validateRequest({ query: schemas.reportQueryDto }), wrap(reportController.getRecentRevenueTransactions));
+router.get('/revenue-trend', validateRequest({ query: schemas.reportQueryDto }), wrap(reportController.getRevenueTrend));
+router.get('/revenue-source', validateRequest({ query: schemas.reportQueryDto }), wrap(reportController.getRevenueSource));
+
+// Shipment Reports
+router.get('/shipment-summary', validateRequest({ query: schemas.reportQueryDto }), wrap(reportController.getShipmentSummary));
+router.get('/shipment-trend', validateRequest({ query: schemas.reportQueryDto }), wrap(reportController.getShipmentTrend));
+router.get('/shipment-status', validateRequest({ query: schemas.reportQueryDto }), wrap(reportController.getShipmentStatus));
+router.get('/top-merchants-by-shipments', requireRole(UserRole.SUPER_ADMIN, UserRole.DISTRIBUTOR), validateRequest({ query: schemas.reportQueryDto }), wrap(reportController.getTopMerchantsByShipments));
+
 module.exports = router;

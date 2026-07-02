@@ -3,7 +3,7 @@ const { wrapController } = require('../../utils/errors');
 const { getPaginationParams, buildPaginationMeta } = require('../../utils/pagination');
 const {
   listDisputesService, createDisputeService, getDisputeService, updateDisputeService,
-  raiseWeightDisputeService, listWeightDisputesService, resolveWeightDisputeService, submitDisputeProofService
+  raiseWeightDisputeService, listWeightDisputesService, resolveWeightDisputeService, submitDisputeProofService, addCommentService
 } = require('./dispute.service');
 
 const wrap = wrapController;
@@ -33,3 +33,4 @@ exports.listWeightDisputes   = wrap(async (req, res) => {
 
 exports.resolveWeightDispute = wrap(async (req, res) => success(res, 'Weight dispute resolved', await resolveWeightDisputeService(req.params.id, req.validated.body, req.user)));
 exports.submitDisputeProof = wrap(async (req, res) => success(res, 'Dispute proof submitted', await submitDisputeProofService(req.params.id, req.validated.body, req.user)));
+exports.addComment = wrap(async (req, res) => success(res, 'Comment added successfully', await addCommentService(req.params.id, req.validated.body, req.user)));

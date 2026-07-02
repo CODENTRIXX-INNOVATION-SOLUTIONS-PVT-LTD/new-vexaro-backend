@@ -47,6 +47,10 @@ const listWeightDisputesQuerySchema = z.object({
   shipmentId: mongoId.optional(),
 });
 
+const addCommentSchema = z.object({
+  comment: z.string().min(1, 'Comment is required').max(2000, 'Comment cannot exceed 2000 characters').trim(),
+});
+
 module.exports = {
   createDisputeSchema,
   updateDisputeSchema,
@@ -55,4 +59,5 @@ module.exports = {
   resolveWeightDisputeSchema,
   submitDisputeProofSchema,
   listWeightDisputesQuerySchema,
+  addCommentSchema,
 };
