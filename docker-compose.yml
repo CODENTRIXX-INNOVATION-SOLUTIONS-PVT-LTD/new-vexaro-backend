@@ -1,0 +1,147 @@
+version: '3.8'
+
+services:
+  # ==============================================================================
+  # MongoDB Replica Set (Required for ACID transactions)
+  # ==============================================================================
+  mongodb-primary:
+    image: mongo:7.0
+    container_name: vexaro-mongodb-primary
+    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+    volumes:
+      - mongodb-primary-data:/data/db
+      - ./scripts/mongo-init.sh:/docker-entrypoint-initdb.d/mongo-init.sh:ro
+    networks:
+      - vexaro-network
+    healthcheck:
+      test: echo "try { rs.status() } catch (err) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongodb-primary:27017'}]}) }" | mongosh --port 27017 --quiet
+      interval: 5s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  # ==============================================================================
+  # Redis (Session Store, Cache, Rate Limiting)
+  # ==============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: vexaro-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass redis123
+    volumes:
+      - redis-data:/data
+    networks:
+      - vexaro-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ==============================================================================
+  # Backend Application
+  # ==============================================================================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: vexaro-backend
+    ports:
+      - "3000:3000"
+    environment:
+      # Application
+      NODE_ENV: production
+      PORT: 3000
+      
+      # MongoDB (Replica Set)
+      MONGODB_URI: mongodb://admin:admin123@mongodb-primary:27017/vexaro?replicaSet=rs0&authSource=admin
+      
+      # Redis
+      REDIS_URL: redis://:redis123@redis:6379
+      
+      # JWT Secrets (CHANGE THESE IN PRODUCTION)
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production-min-32-chars}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-your-super-secret-refresh-key-change-in-production-min-32-chars}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      
+      # Email Configuration
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@vexaro.com}
+      
+      # Velocity API
+      VELOCITY_API_KEY: ${VELOCITY_API_KEY}
+      VELOCITY_API_URL: ${VELOCITY_API_URL:-https://api.velocity.in}
+      VELOCITY_WEBHOOK_SECRET: ${VELOCITY_WEBHOOK_SECRET}
+      
+      # Razorpay
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET}
+      
+      # Sentry
+      SENTRY_DSN: ${SENTRY_DSN}
+      
+      # Frontend URL
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3001}
+      
+      # Rate Limiting
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-900000}
+      RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-100}
+      
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      mongodb-primary:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - vexaro-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/v1/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ==============================================================================
+  # MongoDB Express (Optional - Database Admin UI)
+  # ==============================================================================
+  mongo-express:
+    image: mongo-express:1.0-alpine
+    container_name: vexaro-mongo-express
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_URL: mongodb://admin:admin123@mongodb-primary:27017/?authSource=admin
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: admin123
+    depends_on:
+      - mongodb-primary
+    networks:
+      - vexaro-network
+    profiles:
+      - dev
+
+networks:
+  vexaro-network:
+    driver: bridge
+
+volumes:
+  mongodb-primary-data:
+    driver: local
+  redis-data:
+    driver: local
