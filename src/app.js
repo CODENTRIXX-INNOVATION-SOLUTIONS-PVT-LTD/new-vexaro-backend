@@ -26,6 +26,7 @@ const supportRoutes = require('./modules/support/support.routes');
 const notifRoutes = require('./modules/notifications/notification.routes');
 const settingsRoutes = require('./modules/settings/settings.routes');
 const rateRoutes = require('./modules/rates/rate.routes');
+const superAdminReportRoutes = require('./modules/super-admin-report/super-admin-report.routes');
 const { errorMiddleware } = require('./middleware/error.middleware');
 const webhookRoutes = require('./modules/webhooks');
 
@@ -147,6 +148,7 @@ app.use('/api/v1/support', supportRoutes);
 app.use('/api/v1/notifications', notifRoutes);
 app.use('/api/v1/settings', settingsRoutes);
 app.use('/api/v1/rates', rateRoutes);
+app.use('/api/v1/super-admin-report', superAdminReportRoutes);
 app.use((_req, res) => res.status(404).json({ success: false, message: 'Route not found' }));
 app.use(errorMiddleware);
 
