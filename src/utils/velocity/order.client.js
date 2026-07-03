@@ -3,6 +3,12 @@
 const axios = require('axios');
 const logger = require('../logger');
 
+function formatPhoneNumber(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
+  return digits;
+}
+
 class VelocityOrderClient {
   constructor(baseClient) {
     this.baseClient = baseClient;
@@ -41,8 +47,8 @@ class VelocityOrderClient {
         billing_pincode: shipment.destination.pincode,
         billing_state: shipment.destination.state,
         billing_country: shipment.destination.country || 'India',
-        billing_phone: shipment.destination.phone,
-        billing_email: merchant.email,
+        billing_phone: formatPhoneNumber(shipment.destination.phone),
+        billing_email: shipment.destination.email || merchant.email,
 
         shipping_is_billing: true,
         print_label: true,
@@ -65,19 +71,19 @@ class VelocityOrderClient {
         height: shipment.height || 10,
         weight: shipment.weight || 0.5,
 
-        pickup_location: velocityWHId,
+        pickup_location: warehouse.name || warehouse.warehouseId,
         warehouse_id: velocityWHId,
 
         vendor_details: {
           email: merchant.email,
-          phone: warehouse.phone || merchant.phone || '9999999999',
+          phone: formatPhoneNumber(warehouse.phone || merchant.phone || '9999999999'),
           name: merchant.companyName || `${merchant.firstName} ${merchant.lastName}`,
           address: warehouse.address,
           city: warehouse.city,
           state: warehouse.state,
           country: warehouse.country || 'India',
           pin_code: warehouse.pincode,
-          pickup_location: velocityWHId,
+          pickup_location: warehouse.name || warehouse.warehouseId,
         },
       };
 

@@ -27,6 +27,9 @@ const inviteUserSchema = z.object({
   if (data.role === UserRole.MERCHANT && !data.warehouse) {
     ctx.addIssue({ code: 'custom', path: ['warehouse'], message: 'Warehouse details are required for merchants' });
   }
+  if (data.role === UserRole.MERCHANT && !data.phone) {
+    ctx.addIssue({ code: 'custom', path: ['phone'], message: 'Phone number is required for merchant warehouse creation' });
+  }
   if (data.role !== UserRole.MERCHANT && data.warehouse) {
     ctx.addIssue({ code: 'custom', path: ['warehouse'], message: 'Warehouse details are only allowed for merchants' });
   }

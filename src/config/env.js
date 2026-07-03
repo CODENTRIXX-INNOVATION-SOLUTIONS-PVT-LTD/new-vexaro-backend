@@ -79,7 +79,7 @@ const env = {
   VELOCITY_USERNAME: process.env.VELOCITY_USERNAME,
   VELOCITY_PASSWORD: process.env.VELOCITY_PASSWORD,
   VELOCITY_BASE_URL: process.env.VELOCITY_BASE_URL || 'https://shazam.velocity.in/',
-  // Optional HMAC secret for verifying Velocity webhook signatures
+  // Token Velocity sends in Authorization or x-webhook-token for webhook authentication
   VELOCITY_WEBHOOK_SECRET: process.env.VELOCITY_WEBHOOK_SECRET || '',
 
   // ─── Sentry (optional — error monitoring) ──────────────────────────────────

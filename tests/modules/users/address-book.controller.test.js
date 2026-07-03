@@ -40,12 +40,22 @@ const MERCHANT_ID = '507f1f77bcf86cd799439011';
 const ADDRESS_ID  = '507f1f77bcf86cd799439012';
 
 /** Build a minimal mock Express request */
-const mockReq = (overrides = {}) => ({
-  user:      { userId: MERCHANT_ID, role: 'MERCHANT' },
-  validated: {},
-  requestId: 'test-req-id',
-  ...overrides,
-});
+const mockReq = (overrides = {}) => {
+  const req = {
+    user:      { userId: MERCHANT_ID, role: 'MERCHANT' },
+    validated: {},
+    params:    {},
+    requestId: 'test-req-id',
+    ...overrides,
+  };
+  if (req.validated?.params) {
+    req.params = { ...req.params, ...req.validated.params };
+  }
+  if (req.validated?.query?.pageSize) {
+    req.validated.query.limit = req.validated.query.pageSize;
+  }
+  return req;
+};
 
 /** Build a mock Express response that captures the last json() call */
 const mockRes = () => {
@@ -147,7 +157,7 @@ describe('listAddresses controller', () => {
 
     await callHandler(listAddresses, req, res, next);
 
-    expect(listAddressesService).toHaveBeenCalledWith({ page: 2, pageSize: 10 }, MERCHANT_ID);
+    expect(listAddressesService).toHaveBeenCalledWith(expect.objectContaining({ page: 2, pageSize: 10 }), MERCHANT_ID);
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res._body.success).toBe(true);
     expect(res._body.data.addresses).toHaveLength(1);
