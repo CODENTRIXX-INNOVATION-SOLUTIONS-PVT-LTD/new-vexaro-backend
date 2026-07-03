@@ -22,6 +22,16 @@ const {
   processRefundRequestService,
 } = require('./services/refund-request.service');
 
+const {
+  getAdminStatsService,
+  rechargeDistributorWalletService,
+  listCommissionService,
+  listRefundsService,
+  listRechargeRequestsService,
+  approveRechargeRequestService,
+  rejectRechargeRequestService,
+} = require('./services/admin-finance.service');
+
 module.exports = {
   applyTransaction,
   createWalletService,
@@ -39,4 +49,11 @@ module.exports = {
   submitRefundRequestService,
   listRefundRequestsService,
   processRefundRequestService,
+  getAdminStatsService,
+  rechargeDistributorWalletService,
+  listCommissionService,
+  listRefundsService,
+  listRechargeRequestsService,
+  approveRechargeRequestService,
+  rejectRechargeRequestService,
 };

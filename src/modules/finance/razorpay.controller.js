@@ -6,6 +6,7 @@ const {
   verifyPaymentService,
   listPaymentsService,
   getPaymentService,
+  refundPaymentService,
 } = require('./razorpay.service');
 
 const wrap = wrapController;
@@ -37,4 +38,11 @@ exports.listPayments = wrap(async (req, res) => {
 exports.getPayment = wrap(async (req, res) => {
   const result = await getPaymentService(req.params.id, req.user);
   success(res, 'Payment retrieved', result);
+});
+
+// ─── POST /api/finance/payments/:id/refund ─────────────────────────────────────
+exports.refundPayment = wrap(async (req, res) => {
+  const { amount, reason } = req.validated.body;
+  const result = await refundPaymentService(req.params.id, amount, reason, req.user);
+  success(res, 'Payment refunded successfully', result);
 });

@@ -1,0 +1,27 @@
+
+// POST /api/finance/payments/:id/refund — SA/User: refund payment via Razorpay
+router.post('/payments/:id/refund', validateRequest({ params: schemas.financeIdParamsSchema, body: schemas.refundPaymentSchema }), rzp.refundPayment);
+
+// ── Admin Stats ───────────────────────────────────────────────────────────────
+// GET  /api/finance/admin/stats  — SA: dashboard statistics
+router.get('/admin/stats', requireRole(UserRole.SUPER_ADMIN), validateRequest({ query: emptyObjectSchema }), c.getAdminStats);
+
+// ── Distributor Wallet Recharge (Admin Manual) ────────────────────────────────
+// POST /api/finance/wallets/recharge — SA: manually recharge distributor wallet
+router.post('/wallets/recharge', requireRole(UserRole.SUPER_ADMIN), validateRequest({ body: schemas.rechargeWalletSchema }), c.rechargeDistributorWallet);
+
+// ── Commission ─────────────────────────────────────────────────────────────────
+// GET  /api/finance/commission    — list commission earnings (scoped by role)
+router.get('/commission', validateRequest({ query: schemas.listQuerySchema }), c.listCommission);
+
+// ── Refunds ────────────────────────────────────────────────────────────────────
+// GET  /api/finance/refunds       — list refunds (scoped by role)
+router.get('/refunds', validateRequest({ query: schemas.listQuerySchema }), c.listRefunds);
+
+// ── Recharge Requests (Distributor Manual Recharge Requests) ───────────────────
+// GET  /api/finance/recharge-requests         — list recharge requests (scoped by role)
+router.get('/recharge-requests', validateRequest({ query: schemas.listQuerySchema }), c.listRechargeRequests);
+// POST /api/finance/recharge-requests/:id/approve — SA: approve recharge request
+router.post('/recharge-requests/:id/approve', requireRole(UserRole.SUPER_ADMIN), validateRequest({ params: schemas.financeIdParamsSchema, body: emptyObjectSchema }), c.approveRechargeRequest);
+// POST /api/finance/recharge-requests/:id/reject  — SA: reject recharge request
+router.post('/recharge-requests/:id/reject', requireRole(UserRole.SUPER_ADMIN), validateRequest({ params: schemas.financeIdParamsSchema, body: schemas.rejectRechargeRequestSchema }), c.rejectRechargeRequest);

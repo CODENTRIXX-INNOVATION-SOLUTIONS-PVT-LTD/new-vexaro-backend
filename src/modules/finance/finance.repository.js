@@ -138,6 +138,55 @@ const createSettlement = (data) => Settlement.create(data);
 /** Save a settlement document. */
 const saveSettlement = (settlement, options = {}) => settlement.save(options);
 
+// ─── Admin Finance (Refunds, Recharge Requests) ───────────────────────────────
+
+/** Find all wallets (for admin stats) */
+const findAllWallets = () => Wallet.find().lean();
+
+/** Find all transactions (for admin stats) */
+const findAllTransactions = (filter = {}) => Transaction.find(filter).lean();
+
+/** Find all refunds (for admin stats) */
+const findAllRefunds = (filter = {}) => {
+  // Use Payment model for refunds (from Razorpay integration)
+  const { Payment } = require('../razorpay/razorpay.model');
+  return Payment.find({ ...filter, status: 'REFUNDED' }).lean();
+};
+
+/** Paginated list of refunds */
+const findAllRefundsPaginated = async (filter, { skip, limit, sort = { createdAt: -1 } } = {}) => {
+  const { Payment } = require('../razorpay/razorpay.model');
+  return Promise.all([
+    Payment.find({ ...filter, status: 'REFUNDED' })
+      .populate('userId', 'firstName lastName email companyName')
+      .sort(sort)
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    Payment.countDocuments({ ...filter, status: 'REFUNDED' }),
+  ]);
+};
+
+/** Find recharge request by ID */
+const findRechargeRequestById = (id) => {
+  // Recharge requests are not implemented as a separate model
+  // Return null for now
+  return null;
+};
+
+/** Paginated list of recharge requests */
+const findRechargeRequestsPaginated = async (filter, { skip, limit, sort = { createdAt: -1 } } = {}) => {
+  // Recharge requests are not implemented as a separate model
+  // Return empty for now
+  return [[], 0];
+};
+
+/** Update recharge request */
+const updateRechargeRequest = (id, update, session) => {
+  // Recharge requests are not implemented as a separate model
+  return Promise.resolve();
+};
+
 module.exports = {
   // Wallet
   findWalletByUserId,
@@ -166,4 +215,12 @@ module.exports = {
   createSettlement,
   saveSettlement,
   findOneSettlement: (filter) => Settlement.findOne(filter),
+  // Admin Finance
+  findAllWallets,
+  findAllTransactions,
+  findAllRefunds,
+  findAllRefundsPaginated,
+  findRechargeRequestById,
+  findRechargeRequestsPaginated,
+  updateRechargeRequest,
 };

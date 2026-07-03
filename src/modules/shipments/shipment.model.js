@@ -166,6 +166,25 @@ const shipmentSchema = new mongoose.Schema(
       index:   true,
     },
 
+    // ── QC (Quality Check) fields for return shipments ─────────────────────────
+    qcStatus: {
+      type:    String,
+      enum:    ['ELIGIBLE', 'NOT_ELIGIBLE', 'PASSED', 'FAILED'],
+      default: null,
+    },
+    qcFailureReason: {
+      type:    String,
+      default: null,
+    },
+    qcImages: {
+      type:    [String],
+      default: [],
+    },
+    qcCheckedAt: {
+      type:    Date,
+      default: null,
+    },
+
     // ── Soft delete ─────────────────────────────────────────────────────────
     deletedAt: { type: Date, default: null },
   },
