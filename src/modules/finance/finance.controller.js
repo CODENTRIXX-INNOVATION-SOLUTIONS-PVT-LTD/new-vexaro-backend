@@ -7,7 +7,7 @@ const {
   listSettlementsService, createSettlementService, processSettlementService, transferToMerchantService,
   submitRefundRequestService, listRefundRequestsService, processRefundRequestService,
   getAdminStatsService, rechargeDistributorWalletService, listCommissionService, listRefundsService,
-  listRechargeRequestsService, approveRechargeRequestService, rejectRechargeRequestService,
+  listRechargeRequestsService, createRechargeRequestService, approveRechargeRequestService, rejectRechargeRequestService,
 } = require('./finance.service');
 
 const wrap = wrapController;
@@ -114,6 +114,10 @@ exports.listRechargeRequests = wrap(async (req, res) => {
   const meta = buildPaginationMeta(total, page, limit);
   paginated(res, 'Recharge requests retrieved', { rechargeRequests: items }, meta);
 });
+
+exports.createRechargeRequest = wrap(async (req, res) =>
+  created(res, 'Recharge request submitted successfully', await createRechargeRequestService(req.validated.body, req.user)),
+);
 
 exports.approveRechargeRequest = wrap(async (req, res) =>
   success(res, 'Recharge request approved successfully', await approveRechargeRequestService(req.validated.params.id, req.user)),

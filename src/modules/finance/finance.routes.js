@@ -211,6 +211,13 @@ router.get(
 );
 
 // ── Recharge Requests (Distributor Manual Recharge Requests) ──────────────────────
+// POST /api/finance/recharge-requests         — Distributor: submit a recharge request
+router.post(
+  "/recharge-requests",
+  requireRole(UserRole.DISTRIBUTOR),
+  validateRequest({ body: schemas.createRechargeRequestSchema }),
+  c.createRechargeRequest,
+);
 // GET  /api/finance/recharge-requests         — list recharge requests (scoped by role)
 router.get(
   "/recharge-requests",

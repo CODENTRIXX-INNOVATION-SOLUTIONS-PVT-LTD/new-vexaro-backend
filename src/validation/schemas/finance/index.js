@@ -46,6 +46,12 @@ const rejectRechargeRequestSchema = z.object({
   reason: z.string().trim().min(5).max(500),
 });
 
+const createRechargeRequestSchema = z.object({
+  amount: moneySchema({ min: 1, max: 10000000 }),
+  paymentMethod: z.enum(['UPI', 'NEFT', 'IMPS', 'RTGS', 'Cash', 'Cheque']),
+  referenceId: z.string().trim().max(100).optional(),
+});
+
 const refundPaymentSchema = z.object({
   amount: moneySchema({ min: 0.01, max: 10000000 }).optional(),
   reason: z.string().trim().min(5).max(500),
@@ -64,5 +70,6 @@ module.exports = {
   refundRequestIdParamsSchema,
   rechargeWalletSchema,
   rejectRechargeRequestSchema,
+  createRechargeRequestSchema,
   refundPaymentSchema,
 };
