@@ -1,52 +1,52 @@
+'use strict';
+
 const { z } = require('zod/v4');
 const { env } = require('../../config/env');
-
 const { mongoIdSchema } = require('../../utils/validation');
-const mongoId = mongoIdSchema;
 
-// ─── POST /api/finance/razorpay/create-order ──────────────────────────────────
+const nonEmptyString = (field) =>
+  z.string({ error: `${field} is required` }).trim().min(1, `${field} cannot be empty`);
+
 const createOrderSchema = z.object({
-  // Amount in INR (whole rupees — we convert to paise for Razorpay)
   amount: z
     .number({ error: 'Amount must be a number' })
-    .int('Amount must be a whole number in rupees')
-    .min(100, 'Minimum topup amount is ₹100')
-    .max(env.RAZORPAY_MAX_TOPUP_AMOUNT, `Maximum topup amount is ₹${env.RAZORPAY_MAX_TOPUP_AMOUNT}`),
+    .positive('Amount must be positive')
+    .multipleOf(0.01, 'Amount can have at most two decimal places')
+    .min(100, 'Minimum topup amount is INR 100')
+    .max(env.RAZORPAY_MAX_TOPUP_AMOUNT, `Maximum topup amount is INR ${env.RAZORPAY_MAX_TOPUP_AMOUNT}`),
+  source: z.enum(['checkout', 'upi_qr']).optional(),
 });
 
-// ─── POST /api/finance/razorpay/verify-payment ────────────────────────────────
 const verifyPaymentSchema = z.object({
-  // Internal Payment document _id (returned from create-order)
-  paymentId: mongoId,
-  // razorpay_order_id from checkout response
-  orderId: z
-    .string({ error: 'orderId is required' })
-    .trim()
-    .min(1, 'orderId cannot be empty'),
-  // razorpay_signature from checkout response
-  signature: z
-    .string({ error: 'signature is required' })
-    .trim()
-    .min(1, 'signature cannot be empty'),
-  // razorpay_payment_id from checkout response
-  razorpayPaymentId: z
-    .string({ error: 'razorpayPaymentId is required' })
-    .trim()
-    .min(1, 'razorpayPaymentId cannot be empty'),
+  paymentId: mongoIdSchema.optional(),
+  orderId: nonEmptyString('orderId').optional(),
+  razorpayOrderId: nonEmptyString('razorpayOrderId').optional(),
+  razorpay_order_id: nonEmptyString('razorpay_order_id').optional(),
+  razorpayPaymentId: nonEmptyString('razorpayPaymentId').optional(),
+  razorpay_payment_id: nonEmptyString('razorpay_payment_id').optional(),
+  signature: nonEmptyString('signature').optional(),
+  razorpaySignature: nonEmptyString('razorpaySignature').optional(),
+  razorpay_signature: nonEmptyString('razorpay_signature').optional(),
+}).refine((data) => data.orderId || data.razorpayOrderId || data.razorpay_order_id, {
+  message: 'Razorpay order id is required',
+}).refine((data) => data.razorpayPaymentId || data.razorpay_payment_id, {
+  message: 'Razorpay payment id is required',
+}).refine((data) => data.signature || data.razorpaySignature || data.razorpay_signature, {
+  message: 'Razorpay signature is required',
 });
 
-// ─── GET /api/finance/payments ────────────────────────────────────────────────
 const paymentListQuerySchema = z.object({
-  page:   z.string().optional().transform(v => (v ? parseInt(v) : 1)).pipe(z.number().int().min(1)),
-  limit:  z.string().optional().transform(v => (v ? parseInt(v) : 20)).pipe(z.number().int().min(1).max(100)),
+  page: z.string().optional().transform(v => (v ? parseInt(v, 10) : 1)).pipe(z.number().int().min(1)),
+  limit: z.string().optional().transform(v => (v ? parseInt(v, 10) : 20)).pipe(z.number().int().min(1).max(100)),
   status: z.enum(['PENDING', 'SUCCESS', 'FAILED', 'REFUNDED']).optional(),
-  // Filter by date range (ISO strings)
-  dateFrom:  z.string().optional(),
-  dateTo:    z.string().optional(),
-  // Filter by exact amount (whole rupees)
-  amount:    z.string().optional().transform(v => (v ? parseFloat(v) : undefined)),
-  // SA/Distributor can filter by userId
-  userId:    mongoId.optional(),
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+  amount: z.string().optional().transform(v => (v ? parseFloat(v) : undefined)),
+  userId: mongoIdSchema.optional(),
 });
 
-module.exports = { createOrderSchema, verifyPaymentSchema, paymentListQuerySchema };
+module.exports = {
+  createOrderSchema,
+  verifyPaymentSchema,
+  paymentListQuerySchema,
+};

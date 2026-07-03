@@ -41,7 +41,17 @@ const paymentSchema = new mongoose.Schema(
     amount: {
       type:     Number,
       required: true,
-      min:      [100, 'Minimum topup is ₹100'],
+      min:      [1, 'Amount must be positive'],
+    },
+    amountRupees: {
+      type:     Number,
+      required: true,
+      min:      [1, 'Amount must be positive'],
+    },
+    amountPaise: {
+      type:     Number,
+      required: true,
+      min:      [100, 'Amount must be at least 100 paise'],
     },
     currency: {
       type:    String,
@@ -65,8 +75,24 @@ const paymentSchema = new mongoose.Schema(
       type:    String,
       default: null,
     },
+    vpa: {
+      type:    String,
+      default: null,
+    },
+    razorpayPaymentStatus: {
+      type:    String,
+      default: null,
+    },
+    capturedAt: {
+      type:    Date,
+      default: null,
+    },
     failureReason: {
       type:    String,
+      default: null,
+    },
+    failedAt: {
+      type:    Date,
       default: null,
     },
 
@@ -82,15 +108,20 @@ const paymentSchema = new mongoose.Schema(
       type:    mongoose.Schema.Types.Mixed,
       default: null,
     },
+    webhookEventIds: {
+      type:    [String],
+      default: [],
+    },
   },
   { timestamps: true },
 );
 
 // Index for fast lookups by razorpayPaymentId on webhook events
-paymentSchema.index({ razorpayPaymentId: 1 }, { sparse: true });
+paymentSchema.index({ razorpayPaymentId: 1 }, { unique: true, sparse: true });
 // Compound index for payment history queries
 paymentSchema.index({ userId: 1, createdAt: -1 });
 paymentSchema.index({ userId: 1, status: 1, createdAt: -1 });
+paymentSchema.index({ status: 1, createdAt: -1 });
 
 const Payment = mongoose.model('Payment', paymentSchema);
 

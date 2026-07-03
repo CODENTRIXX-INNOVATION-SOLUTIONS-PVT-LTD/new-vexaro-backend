@@ -29,6 +29,8 @@ const mockPaymentFindOne    = jest.fn();
 const mockPaymentSave       = jest.fn().mockResolvedValue(undefined);
 const mockWalletFindById    = jest.fn();
 const mockTransactionFindById = jest.fn();
+const mockRazorpayFetch      = jest.fn();
+const mockPaymentFindOneAndUpdate = jest.fn();
 
 jest.mock('../../../src/config/env', () => ({
   env: {
@@ -59,6 +61,7 @@ jest.mock('../../../src/config/env', () => ({
 jest.mock('../../../src/modules/finance/payment.model', () => ({
   Payment: {
     findOne: (...args) => mockPaymentFindOne(...args),
+    findOneAndUpdate: (...args) => mockPaymentFindOneAndUpdate(...args),
   },
   PaymentStatus: {
     PENDING:  'PENDING',
@@ -132,6 +135,9 @@ jest.mock('../../../src/modules/finance/finance.service', () => {
 
 jest.mock('razorpay', () => jest.fn().mockImplementation(() => ({
   orders: { create: jest.fn() },
+  payments: {
+    fetch: (...args) => mockRazorpayFetch(...args),
+  },
 })));
 
 // ─── Import AFTER mocks ───────────────────────────────────────────────────────
@@ -153,6 +159,9 @@ const makePendingPayment = (overrides = {}) => {
     walletId:        'wallet-001',
     razorpayOrderId: 'order_ABCDEF',
     amount:          500,
+    amountRupees:    500,
+    amountPaise:     50000,
+    currency:        'INR',
     status:          'PENDING',
     transactionId:   null,
     failureReason:   null,
@@ -174,6 +183,23 @@ const VALID_DTO = (orderId = 'order_ABCDEF', paymentId = 'pay_XYZ123') => ({
 beforeEach(() => {
   jest.clearAllMocks();
   mockPaymentSave.mockResolvedValue(undefined);
+  mockPaymentFindOneAndUpdate.mockImplementation(async (query, update, options) => {
+    return makePendingPayment({ status: 'SUCCESS' });
+  });
+  mockRazorpayFetch.mockResolvedValue({
+    id: 'pay_XYZ123',
+    order_id: 'order_ABCDEF',
+    amount: 50000,
+    status: 'captured',
+    currency: 'INR',
+    captured: true,
+    method: 'netbanking',
+    fee: 1000,
+    tax: 180,
+    email: 'merch@v.in',
+    contact: '+919876543210',
+    acquirer_data: { bank_transaction_id: '123456789' }
+  });
 });
 
 // ─── TESTS ────────────────────────────────────────────────────────────────────
@@ -303,6 +329,13 @@ describe('verifyPaymentService — happy path', () => {
     const paymentId = 'pay_XYZ123';
     const signature = makeValidSignature(orderId, paymentId);
 
+    mockPaymentFindOneAndUpdate.mockImplementation(async (query, update, options) => {
+      payment.status = 'SUCCESS';
+      payment.razorpayPaymentId = paymentId;
+      payment.signature = signature;
+      return payment;
+    });
+
     const result = await verifyPaymentService(
       { paymentId: 'payment-001', orderId, razorpayPaymentId: paymentId, signature },
       MERCHANT_CALLER,
@@ -314,7 +347,7 @@ describe('verifyPaymentService — happy path', () => {
       'user-123',    // caller.userId
       'TOPUP',       // TransactionType.TOPUP
       500,           // payment.amount
-      expect.objectContaining({ reference: `PAY-${paymentId}` }),
+      expect.objectContaining({ reference: `RAZORPAY-${paymentId}` }),
     );
 
     // Payment must be marked SUCCESS

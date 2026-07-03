@@ -25,6 +25,14 @@ const walletSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    lastRechargeAmount: {
+      type: Number,
+      default: 0,
+    },
+    lastRechargeDate: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true },
 );
@@ -97,14 +105,14 @@ const transactionSchema = new mongoose.Schema(
 const preventMutation = function (next) {
   const err = new Error('Transactions are immutable and cannot be updated or deleted.');
   err.statusCode = 400;
-  next(err);
+  if (typeof next === 'function') { next(err); } else { throw err; }
 };
 
 transactionSchema.pre('save', function (next) {
   if (!this.isNew) {
     return preventMutation(next);
   }
-  next();
+  if (typeof next === 'function') { next(); }
 });
 
 transactionSchema.pre('updateOne', preventMutation);
@@ -119,6 +127,7 @@ transactionSchema.index({ walletId: 1, createdAt: -1 });
 transactionSchema.index({ shipmentId: 1 }, { sparse: true });
 transactionSchema.index({ performedBy: 1 }, { sparse: true });
 transactionSchema.index({ walletId: 1, type: 1 });
+transactionSchema.index({ reference: 1 }, { unique: true, sparse: true });
 
 // ─── COD Management Schema ─────────────────────────────────────────────────────
 
@@ -200,3 +209,6 @@ const COD         = mongoose.model('COD',         codSchema);
 const Settlement  = mongoose.model('Settlement',  settlementSchema);
 
 module.exports = { Wallet, Transaction, COD, Settlement, TransactionType, CODStatus };
+
+
+

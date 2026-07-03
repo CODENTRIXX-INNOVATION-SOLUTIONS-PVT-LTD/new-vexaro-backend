@@ -4,8 +4,34 @@ const express = require('express');
 const { env } = require('../../config/env');
 const logger = require('../../utils/logger');
 const { updateShipmentStatusFromVelocityWebhook } = require('../shipments/shipment.service');
+const { Shipment } = require('../shipments/shipment.model');
 
 const webhookRouter = express.Router();
+
+// Velocity IP whitelist as per official documentation
+const VELOCITY_IP_WHITELIST = [
+  '15.207.255.190/32',
+  '13.202.145.74/32',
+];
+
+const isIpWhitelisted = (req) => {
+  const ip = req.ip || req.connection.remoteAddress;
+  if (!ip) return false;
+  
+  // Handle X-Forwarded-For header (may contain multiple IPs)
+  const forwardedFor = req.headers['x-forwarded-for'];
+  const clientIp = forwardedFor ? forwardedFor.split(',')[0].trim() : ip;
+  
+  // Simple CIDR check for /32 (single IP)
+  for (const cidr of VELOCITY_IP_WHITELIST) {
+    if (cidr.endsWith('/32')) {
+      const whitelistedIp = cidr.slice(0, -3);
+      if (clientIp === whitelistedIp) return true;
+    }
+  }
+  
+  return false;
+};
 
 const getRawBody = (req) => {
   if (Buffer.isBuffer(req.body)) return req.body.toString('utf8');
@@ -48,6 +74,27 @@ const handleVelocityEvent = async (payload) => {
       qcStatus: data.qc_status,
       qcFailureReason: data.qc_failure_reason || null,
     });
+
+    // Update shipment QC status
+    try {
+      const shipment = await Shipment.findOne({ awb: data.tracking_number });
+      if (shipment) {
+        shipment.qcStatus = data.qc_status || null;
+        shipment.qcFailureReason = data.qc_failure_reason || null;
+        shipment.qcImages = data.qc_images || [];
+        shipment.qcCheckedAt = new Date();
+        await shipment.save();
+        logger.info('velocity_webhook_qc_status_updated', {
+          awb: data.tracking_number,
+          qcStatus: data.qc_status,
+        });
+      }
+    } catch (err) {
+      logger.error('velocity_webhook_qc_update_failed', {
+        awb: data.tracking_number,
+        error: err.message,
+      });
+    }
     return;
   }
 
@@ -55,6 +102,12 @@ const handleVelocityEvent = async (payload) => {
 };
 
 webhookRouter.post('/velocity', express.raw({ type: '*/*' }), async (req, res) => {
+  // IP whitelisting check
+  if (!isIpWhitelisted(req)) {
+    logger.warn('velocity_webhook_ip_not_whitelisted', { ip: req.ip, forwardedFor: req.headers['x-forwarded-for'] });
+    return res.status(403).json({ message: 'IP not whitelisted' });
+  }
+
   const receivedToken = getAuthToken(req);
   const expectedToken = env.VELOCITY_WEBHOOK_SECRET;
 
@@ -84,7 +137,16 @@ webhookRouter.post('/velocity', express.raw({ type: '*/*' }), async (req, res) =
       eventId: payload.event_id || null,
       awb: payload.data?.tracking_number || null,
     });
-    await handleVelocityEvent(payload);
+    
+    // Timeout enforcement - 10 seconds per Velocity spec
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Webhook processing timeout')), 10000)
+    );
+    
+    await Promise.race([
+      handleVelocityEvent(payload),
+      timeoutPromise
+    ]);
   } catch (err) {
     logger.error('velocity_webhook_processing_failed', {
       event: payload.event,

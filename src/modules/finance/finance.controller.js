@@ -6,6 +6,8 @@ const {
   listTransactionsService, listCODService, remitCODService,
   listSettlementsService, createSettlementService, processSettlementService, transferToMerchantService,
   submitRefundRequestService, listRefundRequestsService, processRefundRequestService,
+  getAdminStatsService, rechargeDistributorWalletService, listCommissionService, listRefundsService,
+  listRechargeRequestsService, approveRechargeRequestService, rejectRechargeRequestService,
 } = require('./finance.service');
 
 const wrap = wrapController;
@@ -78,4 +80,45 @@ exports.listRefundRequests = wrap(async (req, res) => {
 
 exports.processRefundRequest = wrap(async (req, res) =>
   success(res, 'Refund request processed successfully', await processRefundRequestService(req.validated.params.id, req.validated.body, req.user)),
+);
+
+// ─── Admin Stats ──────────────────────────────────────────────────────────────
+exports.getAdminStats = wrap(async (req, res) => success(res, 'Admin stats retrieved', await getAdminStatsService(req.user)));
+
+// ─── Distributor Wallet Recharge (Admin Manual) ────────────────────────────────
+exports.rechargeDistributorWallet = wrap(async (req, res) => created(res, 'Distributor wallet recharged successfully', await rechargeDistributorWalletService(req.validated.body, req.user)));
+
+// ─── Commission ─────────────────────────────────────────────────────────────────
+exports.listCommission = wrap(async (req, res) => {
+  const query = req.validated.query;
+  const { page, limit } = getPaginationParams(query, 20);
+  const { items, total } = await listCommissionService(query, req.user);
+  const meta = buildPaginationMeta(total, page, limit);
+  paginated(res, 'Commission retrieved', { commissions: items }, meta);
+});
+
+// ─── Refunds ────────────────────────────────────────────────────────────────────
+exports.listRefunds = wrap(async (req, res) => {
+  const query = req.validated.query;
+  const { page, limit } = getPaginationParams(query, 20);
+  const { items, total } = await listRefundsService(query, req.user);
+  const meta = buildPaginationMeta(total, page, limit);
+  paginated(res, 'Refunds retrieved', { refunds: items }, meta);
+});
+
+// ─── Recharge Requests ─────────────────────────────────────────────────────────
+exports.listRechargeRequests = wrap(async (req, res) => {
+  const query = req.validated.query;
+  const { page, limit } = getPaginationParams(query, 20);
+  const { items, total } = await listRechargeRequestsService(query, req.user);
+  const meta = buildPaginationMeta(total, page, limit);
+  paginated(res, 'Recharge requests retrieved', { rechargeRequests: items }, meta);
+});
+
+exports.approveRechargeRequest = wrap(async (req, res) =>
+  success(res, 'Recharge request approved successfully', await approveRechargeRequestService(req.validated.params.id, req.user)),
+);
+
+exports.rejectRechargeRequest = wrap(async (req, res) =>
+  success(res, 'Recharge request rejected successfully', await rejectRechargeRequestService(req.validated.params.id, req.validated.body, req.user)),
 );
