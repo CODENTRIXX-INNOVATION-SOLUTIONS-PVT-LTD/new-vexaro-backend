@@ -58,7 +58,12 @@ app.use(helmet({
   },
 }));
 
-const allowedOrigins = [env.FRONTEND_URL].filter(Boolean);
+const allowedOrigins = [
+  "http://localhost:4200",
+  "http://103.239.138.225",
+  "https://103.239.138.225",
+  "https://courier.vexarocouriersolutions.com"
+];
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
