@@ -28,6 +28,7 @@ const {
   listCommissionService,
   listRefundsService,
   listRechargeRequestsService,
+  createRechargeRequestService,
   approveRechargeRequestService,
   rejectRechargeRequestService,
 } = require('./services/admin-finance.service');
@@ -54,6 +55,7 @@ module.exports = {
   listCommissionService,
   listRefundsService,
   listRechargeRequestsService,
+  createRechargeRequestService,
   approveRechargeRequestService,
   rejectRechargeRequestService,
 };

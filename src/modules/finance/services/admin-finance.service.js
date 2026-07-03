@@ -16,23 +16,21 @@ const getAdminStatsService = async (caller) => {
     throw Object.assign(new Error('Access denied'), { statusCode: 403 });
   }
 
-  const wallets = await financeRepository.findAllWallets();
+  const { Payment } = require('../payment.model');
+
+  const [wallets, successPayments, refundedPayments] = await Promise.all([
+    financeRepository.findAllWallets(),
+    Payment.countDocuments({ status: 'SUCCESS' }).lean(),
+    Payment.countDocuments({ status: 'REFUNDED' }).lean(),
+  ]);
+
   const totalWalletValue = wallets.reduce((sum, w) => sum + (w.balance || 0), 0);
-
-  const transactions = await financeRepository.findAllTransactions({ type: TransactionType.TOPUP });
-  const successTransactions = transactions.filter(t => t.status === 'SUCCESS').length;
-
-  const refunds = await financeRepository.findAllRefunds();
-  const pendingRefunds = refunds.filter(r => r.status === 'PENDING').length;
-
-  // Calculate total admin commission (simplified - actual logic may vary)
-  const totalCommission = 0; // Implement based on your commission calculation logic
 
   return {
     totalWalletValue,
-    totalCommission,
-    successTransactions,
-    pendingRefunds,
+    totalCommission: 0, // Commission calculated from shipment margins — implement separately
+    successTransactions: successPayments,
+    pendingRefunds: refundedPayments,
   };
 };
 
@@ -132,18 +130,18 @@ const listRefundsService = async (query, caller) => {
  */
 const listRechargeRequestsService = async (query, caller) => {
   let filter = {};
-  
+
   if (caller.role === UserRole.DISTRIBUTOR) {
     filter = { userId: caller.userId };
-  } else if (caller.role !== UserRole.SUPER_ADMIN) {
+  } else if (caller.role === UserRole.SUPER_ADMIN) {
+    // SA can filter by status
+    if (query.status) filter.status = query.status;
+  } else {
     throw Object.assign(new Error('Access denied'), { statusCode: 403 });
   }
 
   const { limit, skip } = getPaginationParams(query, 20);
-  
-  // This is a placeholder - implement based on your recharge request model
   const [requests, total] = await financeRepository.findRechargeRequestsPaginated(filter, { skip, limit });
-
   return { items: requests, total };
 };
 
@@ -164,29 +162,40 @@ const approveRechargeRequestService = async (requestId, caller) => {
   }
 
   return runInTransaction(async (session) => {
-    // Update request status
-    await financeRepository.updateRechargeRequest(requestId, { status: 'APPROVED' }, session);
-
-    // Credit the wallet
     const reference = `RECHARGE-REQ-${requestId}`;
-    const { wallet, transaction } = await applyTransaction(session, request.userId, TransactionType.TOPUP, request.amount, {
-      performedBy: caller.userId,
-      note: `Recharge request approved`,
-      reference,
-    });
+    const { wallet, transaction } = await applyTransaction(
+      session,
+      request.userId._id.toString(),
+      TransactionType.TOPUP,
+      request.amount,
+      {
+        performedBy: caller.userId,
+        note: `Recharge request approved by admin`,
+        reference,
+      },
+    );
+
+    await financeRepository.updateRechargeRequest(
+      requestId,
+      {
+        status: 'APPROVED',
+        transactionId: transaction._id,
+        processedBy: caller.userId,
+        processedAt: new Date(),
+      },
+      session,
+    );
 
     try {
-      await createNotification(request.userId, {
+      await createNotification(request.userId._id.toString(), {
         title: 'Recharge Request Approved',
-        message: `INR ${request.amount} has been added to your wallet.`,
+        message: `Your recharge request of ₹${request.amount.toLocaleString('en-IN')} has been approved and credited to your wallet.`,
         type: 'PAYMENT',
         meta: { requestId, reference },
       });
-    } catch (err) {
-      // Notification failure should not block the approval
-    }
+    } catch (_) {}
 
-    return { wallet, transaction, request };
+    return { wallet, transaction };
   });
 };
 
@@ -208,21 +217,45 @@ const rejectRechargeRequestService = async (requestId, dto, caller) => {
     throw Object.assign(new Error('Request already processed'), { statusCode: 400 });
   }
 
-  // Update request status
-  await financeRepository.updateRechargeRequest(requestId, { status: 'REJECTED', rejectionReason: reason });
+  await financeRepository.updateRechargeRequest(requestId, {
+    status: 'REJECTED',
+    rejectionReason: reason || null,
+    processedBy: caller.userId,
+    processedAt: new Date(),
+  });
 
   try {
-    await createNotification(request.userId, {
+    await createNotification(request.userId._id.toString(), {
       title: 'Recharge Request Rejected',
-      message: `Your recharge request for INR ${request.amount} was rejected. ${reason || ''}`,
+      message: `Your recharge request of ₹${request.amount.toLocaleString('en-IN')} was rejected.${reason ? ` Reason: ${reason}` : ''}`,
       type: 'PAYMENT',
       meta: { requestId, reason },
     });
-  } catch (err) {
-    // Notification failure should not block the rejection
+  } catch (_) {}
+
+  return { success: true };
+};
+
+/**
+ * Create a recharge request (Distributor submits to SA for manual top-up)
+ */
+const createRechargeRequestService = async (dto, caller) => {
+  if (caller.role !== UserRole.DISTRIBUTOR) {
+    throw Object.assign(new Error('Only distributors can submit recharge requests'), { statusCode: 403 });
   }
 
-  return { request };
+  const { amount, paymentMethod, referenceId } = dto;
+  const { RechargeRequest } = require('../recharge-request.model');
+
+  const request = await RechargeRequest.create({
+    userId: caller.userId,
+    amount,
+    paymentMethod,
+    referenceId: referenceId || null,
+    status: 'PENDING',
+  });
+
+  return request;
 };
 
 module.exports = {
@@ -231,6 +264,7 @@ module.exports = {
   listCommissionService,
   listRefundsService,
   listRechargeRequestsService,
+  createRechargeRequestService,
   approveRechargeRequestService,
   rejectRechargeRequestService,
 };

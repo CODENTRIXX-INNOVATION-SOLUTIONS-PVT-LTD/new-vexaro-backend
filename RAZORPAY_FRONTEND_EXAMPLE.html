@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vexaro - Razorpay Wallet Top-up</title>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    .card {
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 450px;
+      width: 100%;
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 28px;
+    }
+    p { color: #666; margin-bottom: 30px; }
+    .input-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      color: #333;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 16px;
+      transition: border-color 0.3s;
+    }
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    button {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .alert {
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-weight: 500;
+    }
+    .alert-success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    .alert-error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255,255,255,.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 1s ease-in-out infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>💰 Wallet Top-up</h1>
+    <p>Add money to your Vexaro wallet securely</p>
+
+    <div id="alert" style="display: none;"></div>
+
+    <form id="topup-form">
+      <div class="input-group">
+        <label for="amount">Amount (₹)</label>
+        <input 
+          type="number" 
+          id="amount" 
+          name="amount" 
+          min="100" 
+          max="100000" 
+          step="0.01" 
+          placeholder="Enter amount (min ₹100)"
+          required
+        >
+      </div>
+
+      <button type="submit" id="pay-btn">
+        <span id="btn-text">Continue to Payment</span>
+        <span id="btn-loading" class="loading" style="display: none;"></span>
+      </button>
+    </form>
+  </div>
+
+  <script>
+    // Configuration
+    const API_BASE_URL = 'http://localhost:5000/api/v1';
+    const JWT_TOKEN = localStorage.getItem('authToken') || 'YOUR_JWT_TOKEN_HERE';
+    
+    // DOM Elements
+    const form = document.getElementById('topup-form');
+    const amountInput = document.getElementById('amount');
+    const payBtn = document.getElementById('pay-btn');
+    const btnText = document.getElementById('btn-text');
+    const btnLoading = document.getElementById('btn-loading');
+    const alertDiv = document.getElementById('alert');
+
+    // Utility Functions
+    function showAlert(message, type = 'success') {
+      alertDiv.className = `alert alert-${type}`;
+      alertDiv.textContent = message;
+      alertDiv.style.display = 'block';
+      setTimeout(() => {
+        alertDiv.style.display = 'none';
+      }, 5000);
+    }
+
+    function setLoading(isLoading) {
+      payBtn.disabled = isLoading;
+      btnText.style.display = isLoading ? 'none' : 'inline';
+      btnLoading.style.display = isLoading ? 'inline-block' : 'none';
+    }
+
+    // Step 1: Create Razorpay Order
+    async function createOrder(amount) {
+      const response = await fetch(`${API_BASE_URL}/wallet/razorpay/create-order`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${JWT_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ amount: parseFloat(amount) })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to create order');
+      }
+
+      return await response.json();
+    }
+
+    // Step 2: Verify Payment
+    async function verifyPayment(paymentData) {
+      const response = await fetch(`${API_BASE_URL}/wallet/razorpay/verify`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${JWT_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(paymentData)
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Payment verification failed');
+      }
+
+      return await response.json();
+    }
+
+    // Step 3: Open Razorpay Checkout
+    function openRazorpayCheckout(orderData) {
+      const options = {
+        key: orderData.data.keyId,
+        amount: orderData.data.amount,
+        currency: orderData.data.currency,
+        order_id: orderData.data.razorpayOrderId,
+        name: 'Vexaro Logistics',
+        description: 'Wallet Top-up',
+        image: 'https://your-logo-url.com/logo.png',
+        handler: async function(response) {
+          setLoading(true);
+          try {
+            const verifyData = {
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpaySignature: response.razorpay_signature
+            };
+
+            const result = await verifyPayment(verifyData);
+            showAlert(`✅ Wallet credited: ₹${result.data.transaction.amount}`, 'success');
+            form.reset();
+          } catch (error) {
+            showAlert('❌ ' + error.message, 'error');
+          } finally {
+            setLoading(false);
+          }
+        },
+        prefill: {
+          name: 'John Doe',  // Replace with actual user data
+          email: 'john@example.com',
+          contact: '9876543210'
+        },
+        theme: {
+          color: '#667eea'
+        },
+        modal: {
+          ondismiss: function() {
+            setLoading(false);
+            showAlert('Payment cancelled', 'error');
+          }
+        }
+      };
+
+      const rzp = new Razorpay(options);
+      rzp.open();
+    }
+
+    // Form Submit Handler
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const amount = amountInput.value;
+      
+      if (amount < 100) {
+        showAlert('Minimum top-up amount is ₹100', 'error');
+        return;
+      }
+
+      if (amount > 100000) {
+        showAlert('Maximum top-up amount is ₹1,00,000', 'error');
+        return;
+      }
+
+      setLoading(true);
+
+      try {
+        const orderData = await createOrder(amount);
+        setLoading(false);
+        openRazorpayCheckout(orderData);
+      } catch (error) {
+        setLoading(false);
+        showAlert('❌ ' + error.message, 'error');
+      }
+    });
+
+    // Check if JWT token is set
+    if (JWT_TOKEN === 'YOUR_JWT_TOKEN_HERE') {
+      showAlert('⚠️ Please set your JWT token in the code', 'error');
+    }
+  </script>
+</body>
+</html>

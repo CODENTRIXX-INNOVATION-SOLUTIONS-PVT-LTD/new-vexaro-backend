@@ -148,14 +148,13 @@ const findAllTransactions = (filter = {}) => Transaction.find(filter).lean();
 
 /** Find all refunds (for admin stats) */
 const findAllRefunds = (filter = {}) => {
-  // Use Payment model for refunds (from Razorpay integration)
-  const { Payment } = require('../razorpay/razorpay.model');
+  const { Payment } = require('./payment.model');
   return Payment.find({ ...filter, status: 'REFUNDED' }).lean();
 };
 
 /** Paginated list of refunds */
 const findAllRefundsPaginated = async (filter, { skip, limit, sort = { createdAt: -1 } } = {}) => {
-  const { Payment } = require('../razorpay/razorpay.model');
+  const { Payment } = require('./payment.model');
   return Promise.all([
     Payment.find({ ...filter, status: 'REFUNDED' })
       .populate('userId', 'firstName lastName email companyName')
@@ -169,22 +168,30 @@ const findAllRefundsPaginated = async (filter, { skip, limit, sort = { createdAt
 
 /** Find recharge request by ID */
 const findRechargeRequestById = (id) => {
-  // Recharge requests are not implemented as a separate model
-  // Return null for now
-  return null;
+  const { RechargeRequest } = require('./recharge-request.model');
+  return RechargeRequest.findById(id).populate('userId', 'firstName lastName email companyName').lean();
 };
 
 /** Paginated list of recharge requests */
 const findRechargeRequestsPaginated = async (filter, { skip, limit, sort = { createdAt: -1 } } = {}) => {
-  // Recharge requests are not implemented as a separate model
-  // Return empty for now
-  return [[], 0];
+  const { RechargeRequest } = require('./recharge-request.model');
+  return Promise.all([
+    RechargeRequest.find(filter)
+      .populate('userId', 'firstName lastName email companyName role')
+      .sort(sort)
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    RechargeRequest.countDocuments(filter),
+  ]);
 };
 
 /** Update recharge request */
 const updateRechargeRequest = (id, update, session) => {
-  // Recharge requests are not implemented as a separate model
-  return Promise.resolve();
+  const { RechargeRequest } = require('./recharge-request.model');
+  const opts = { new: true };
+  if (session) opts.session = session;
+  return RechargeRequest.findByIdAndUpdate(id, update, opts);
 };
 
 module.exports = {
