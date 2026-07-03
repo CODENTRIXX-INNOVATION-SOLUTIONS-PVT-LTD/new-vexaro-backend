@@ -8,12 +8,17 @@ class VelocityWarehouseClient {
     this.baseClient = baseClient;
   }
 
+  formatPhoneNumber(phone) {
+    const digits = String(phone || '').replace(/\D/g, '');
+    return digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : digits;
+  }
+
   async createWarehouse(warehouse, merchantName = '') {
     try {
       const headers = await this.baseClient.getHeaders();
       const payload = {
         name: warehouse.name || merchantName || `Warehouse-${warehouse.warehouseId}`,
-        phone_number: warehouse.phone || '',
+        phone_number: this.formatPhoneNumber(warehouse.phone),
         email: warehouse.email || 'warehouse@vexaro.in',
         contact_person: warehouse.contactPerson,
         gst_no: warehouse.gstNo || undefined,

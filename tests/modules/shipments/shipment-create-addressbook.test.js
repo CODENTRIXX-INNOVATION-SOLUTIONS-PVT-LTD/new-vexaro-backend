@@ -55,6 +55,7 @@ jest.mock('../../../src/utils/velocity', () => ({
       labelUrl: 'http://label.url', shipmentId: 'ship123',
       velocityOrderId: 'vo123',
     }),
+    createWarehouse: jest.fn().mockResolvedValue('vel-wh-123'),
   },
 }));
 jest.mock('../../../src/utils/cache', () => ({
@@ -88,6 +89,7 @@ const mockMerchant = {
 const mockWarehouse = {
   _id: '507f1f77bcf86cd799439040', contactPerson: 'WH Manager',
   address: 'WH Street', city: 'Delhi', state: 'Delhi', pincode: '110001',
+  save: jest.fn().mockResolvedValue({}),
 };
 
 const mockRateCard = { _id: 'rc1', serviceType: 'STANDARD', isActive: true };

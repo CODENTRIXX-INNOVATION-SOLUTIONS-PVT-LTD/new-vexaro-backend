@@ -6,7 +6,11 @@ const logger = require('../logger');
 
 class VelocityBaseClient {
   constructor(config = {}) {
-    this.baseUrl = config.baseUrl || env.VELOCITY_BASE_URL;
+    let url = config.baseUrl || env.VELOCITY_BASE_URL;
+    if (url && !url.endsWith('/')) {
+      url += '/';
+    }
+    this.baseUrl = url;
     this.username = config.username || env.VELOCITY_USERNAME;
     this.password = config.password || env.VELOCITY_PASSWORD;
     this.cachedToken = null;

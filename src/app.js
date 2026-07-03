@@ -84,6 +84,7 @@ app.use(compression({
 
 app.use(requestMiddleware);
 app.use('/api/webhooks', webhookLimiter, webhookRoutes);
+app.use('/api/v1/webhook', webhookLimiter, webhookRoutes);
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));

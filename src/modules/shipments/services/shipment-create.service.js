@@ -46,6 +46,7 @@ const resolveAddressFromBook = async (addressBookId, merchantId) => {
   return {
     name:        entry.name,
     phone:       entry.phone,
+    email:       entry.email || undefined,
     addressLine: entry.addressLine,
     city:        entry.city,
     state:       entry.state,
@@ -127,7 +128,7 @@ const createShipmentService = async (dto, caller) => {
   // Validate warehouse
   let finalWarehouseId = dto.warehouseId || null;
   const warehouse = finalWarehouseId
-    ? await Warehouse.findById(finalWarehouseId)
+    ? await Warehouse.findOne({ _id: finalWarehouseId, merchantId, isActive: true })
     : await Warehouse.findOne({ merchantId, isActive: true });
 
   if (!warehouse) {
@@ -136,10 +137,18 @@ const createShipmentService = async (dto, caller) => {
 
   finalWarehouseId = warehouse._id.toString();
 
+  if (!warehouse.velocityWarehouseId) {
+    const merchantName = merchant.companyName || `${merchant.firstName} ${merchant.lastName}`.trim();
+    const velocityWarehouseId = await velocityClient.createWarehouse(warehouse, merchantName);
+    warehouse.velocityWarehouseId = velocityWarehouseId;
+    warehouse.velocitySyncedAt = new Date();
+    await warehouse.save();
+  }
+
   // Use the resolved origin address (from address book or DTO), falling back to warehouse details.
   let originAddress = dto.origin || {
-    name: warehouse.contactPerson,
-    phone: merchant.phone || '9999999999',
+    name: warehouse.contactPerson || merchant.companyName || `${merchant.firstName || ''} ${merchant.lastName || ''}`.trim() || 'Warehouse Contact',
+    phone: warehouse.phone || merchant.phone || '9999999999',
     addressLine: warehouse.address,
     city: warehouse.city,
     state: warehouse.state,
@@ -194,6 +203,9 @@ const createShipmentService = async (dto, caller) => {
         origin:           originAddress,
         destination:      dto.destination,
         weight:           dto.weight,
+        length:           dto.length ?? null,
+        breadth:          dto.breadth ?? null,
+        height:           dto.height ?? null,
         declaredWeight:   dto.weight,
         volumetricWeight: pricing.volumetricWeight,
         billingWeight:    pricing.billingWeight,
