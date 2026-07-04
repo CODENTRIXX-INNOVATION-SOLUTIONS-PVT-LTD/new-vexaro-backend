@@ -87,10 +87,17 @@ const processSettlementService = async (settlementId, dto, caller) => {
 
   return runInTransaction(async (session) => {
     if (dto.success) {
-      await applyTransaction(session, settlement.toUserId.toString(), TransactionType.SETTLEMENT, settlement.amount, {
+      // Debit from the initiating party (fromUserId)
+      await applyTransaction(session, settlement.fromUserId.toString(), TransactionType.SETTLEMENT, settlement.amount, {
         performedBy: caller.userId,
-        reference:   settlement.reference || `SETTLE-${settlement._id}`,
+        reference:   `SETTLE-FROM-${settlement._id}`,
         note:        dto.note || 'Settlement processed',
+      });
+      // Credit to the receiving party (toUserId) using TRANSFER_CREDIT (a credit type)
+      await applyTransaction(session, settlement.toUserId.toString(), TransactionType.TRANSFER_CREDIT, settlement.amount, {
+        performedBy: caller.userId,
+        reference:   `SETTLE-TO-${settlement._id}`,
+        note:        dto.note || 'Settlement received',
       });
     }
 

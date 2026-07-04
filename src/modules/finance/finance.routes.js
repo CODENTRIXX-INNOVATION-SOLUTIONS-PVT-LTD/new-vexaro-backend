@@ -131,23 +131,23 @@ router.patch(
 // ── Razorpay Wallet Top-up ───────────────────────────────────────────────────
 const rzp = require("./razorpay.controller");
 
-// POST /api/finance/razorpay/create-order   — Merchant/Distributor: create Razorpay order
+// POST /api/finance/razorpay/create-order   — Merchant/Distributor/SuperAdmin: create Razorpay order
 router.post(
   "/razorpay/create-order",
-  requireRole(UserRole.MERCHANT, UserRole.DISTRIBUTOR),
+  requireRole(UserRole.MERCHANT, UserRole.DISTRIBUTOR, UserRole.SUPER_ADMIN),
   validateRequest({ body: schemas.createOrderSchema }),
   rzp.createOrder,
 );
-// POST /api/finance/razorpay/verify-payment — Merchant/Distributor: verify signature + credit wallet
+// POST /api/finance/razorpay/verify-payment — Merchant/Distributor/SuperAdmin: verify signature + credit wallet
 router.post(
   "/razorpay/verify-payment",
-  requireRole(UserRole.MERCHANT, UserRole.DISTRIBUTOR),
+  requireRole(UserRole.MERCHANT, UserRole.DISTRIBUTOR, UserRole.SUPER_ADMIN),
   validateRequest({ body: schemas.verifyPaymentSchema }),
   rzp.verifyPayment,
 );
 router.post(
   "/razorpay/verify",
-  requireRole(UserRole.MERCHANT, UserRole.DISTRIBUTOR),
+  requireRole(UserRole.MERCHANT, UserRole.DISTRIBUTOR, UserRole.SUPER_ADMIN),
   validateRequest({ body: schemas.verifyPaymentSchema }),
   rzp.verifyPayment,
 );

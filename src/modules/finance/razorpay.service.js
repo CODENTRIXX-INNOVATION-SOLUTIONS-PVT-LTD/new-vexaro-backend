@@ -109,8 +109,8 @@ const normalizeVerifyDto = (dto) => ({
 });
 
 const ensureWalletTopupRole = (caller) => {
-  if (![UserRole.MERCHANT, UserRole.DISTRIBUTOR].includes(caller.role)) {
-    throw Object.assign(new Error('Only Merchants and Distributors can add money to their own wallet'), { statusCode: 403 });
+  if (![UserRole.MERCHANT, UserRole.DISTRIBUTOR, UserRole.SUPER_ADMIN].includes(caller.role)) {
+    throw Object.assign(new Error('Only Merchants, Distributors and Super Admin can add money to their wallet'), { statusCode: 403 });
   }
 };
 
@@ -277,8 +277,16 @@ const createRazorpayOrderService = async (dto, caller) => {
   }
 
   const wallet = await Wallet.findOne({ userId: caller.userId });
-  if (!wallet) throw Object.assign(new Error('Wallet not found'), { statusCode: 404 });
-  if (!wallet.isActive) throw Object.assign(new Error('Wallet is inactive'), { statusCode: 400 });
+  if (!wallet) {
+    // Auto-create wallet for SA on first top-up attempt
+    if (caller.role === UserRole.SUPER_ADMIN) {
+      await Wallet.create({ userId: caller.userId, balance: 0 });
+    } else {
+      throw Object.assign(new Error('Wallet not found'), { statusCode: 404 });
+    }
+  } else if (!wallet.isActive) {
+    throw Object.assign(new Error('Wallet is inactive'), { statusCode: 400 });
+  }
 
   const receipt = `vx_${Date.now()}_${String(caller.userId).slice(-8)}`;
   let order;
@@ -612,27 +620,27 @@ const refundPaymentService = async (paymentId, amount, reason, caller) => {
     };
     await payment.save();
 
-    // Debit wallet (reverse the credit)
+    // Debit wallet — reverse the earlier TOPUP credit so balance reflects the card refund
     return runInTransaction(async (session) => {
       const { applyTransaction } = require('./finance.service');
+      const refundAmountRupees = amount || payment.amountRupees;
       const reference = `REFUND-${rzpRefund.id}`;
       const { wallet, transaction } = await applyTransaction(
         session,
         payment.userId.toString(),
-        TransactionType.REFUND,
-        amount || payment.amountRupees,
+        TransactionType.DEBIT,   // debit — money has left the wallet back to the user's card
+        refundAmountRupees,
         {
           reference,
-          note: `Refund for payment ${payment._id}`,
+          note: `Razorpay refund for payment ${payment._id}`,
           performedBy: caller.userId,
-          originalPaymentId: payment._id,
         },
       );
 
       try {
         await createNotification(payment.userId.toString(), {
           title: 'Payment Refunded',
-          message: `INR ${amount || payment.amountRupees} has been refunded to your wallet.`,
+          message: `INR ${refundAmountRupees.toLocaleString('en-IN')} has been refunded to your bank/card via Razorpay.`,
           type: 'PAYMENT',
           meta: { refundId: rzpRefund.id, originalPaymentId: payment._id },
         });

@@ -54,7 +54,7 @@ const refundWalletService = async (dto, caller) => {
       userId,
       amount,
       type: 'MANUAL',
-      reference: `REFUND-MANUAL-${Date.now()}`,
+      reference: `REFUND-MANUAL-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       shipmentId,
       note: note || 'Manual wallet refund by administrator',
       performedBy: caller.userId,
