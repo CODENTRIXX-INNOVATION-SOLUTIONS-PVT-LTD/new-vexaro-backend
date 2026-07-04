@@ -97,6 +97,34 @@ const run = async () => {
       options: { name: 'weightdisputes_status_disputeExpiresAt' },
       reason: 'MEDIUM — closeExpiredWeightDisputes() filters { status: OPEN, disputeExpiresAt: < now }',
     },
+
+    // ── CRITICAL: Payment razorpayPaymentId must be sparse+unique so multiple
+    //    PENDING payments (razorpayPaymentId=null) can coexist. Non-sparse unique
+    //    would treat every null as a duplicate and crash create-order.
+    {
+      collection: 'payments',
+      index: { razorpayPaymentId: 1 },
+      options: { unique: true, sparse: true, name: 'razorpayPaymentId_1' },
+      reason: 'CRITICAL — sparse so null values (pending payments) are excluded from uniqueness check',
+    },
+    {
+      collection: 'payments',
+      index: { razorpayOrderId: 1 },
+      options: { unique: true, name: 'razorpayOrderId_1' },
+      reason: 'CRITICAL — prevents duplicate Razorpay orders being stored',
+    },
+    {
+      collection: 'payments',
+      index: { userId: 1, createdAt: -1 },
+      options: { name: 'payments_userId_createdAt' },
+      reason: 'HIGH — payment history queries by user',
+    },
+    {
+      collection: 'payments',
+      index: { status: 1, createdAt: -1 },
+      options: { name: 'payments_status_createdAt' },
+      reason: 'MEDIUM — admin payment list filtered by status',
+    },
   ];
 
   let created = 0;

@@ -11,12 +11,22 @@ const { createNotification } = require('../../notifications/notification.service
 const createWalletService = async (userId, session = null) => {
   const existing = await financeRepository.findWalletByUserId(userId, session);
   if (existing) return existing;
-  return financeRepository.createWallet({ userId, balance: 0 }, session);
+  const result = await financeRepository.createWallet({ userId, balance: 0 }, session);
+  // Wallet.create([data], { session }) returns an array — unwrap it
+  return Array.isArray(result) ? result[0] : result;
 };
 
 const getMyWalletService = async (caller) => {
-  const wallet = await financeRepository.findWalletByUserId(caller.userId);
-  if (!wallet) throw Object.assign(new Error('Wallet not found'), { statusCode: 404 });
+  // Auto-create wallet for SA if it doesn't exist yet
+  let wallet = await financeRepository.findWalletByUserId(caller.userId);
+  if (!wallet) {
+    if (caller.role === UserRole.SUPER_ADMIN) {
+      const result = await financeRepository.createWallet({ userId: caller.userId, balance: 0 });
+      wallet = Array.isArray(result) ? result[0] : result;
+    } else {
+      throw Object.assign(new Error('Wallet not found'), { statusCode: 404 });
+    }
+  }
   return wallet;
 };
 
@@ -57,7 +67,7 @@ const topupWalletService = async (dto, caller) => {
     const { wallet, transaction } = await applyTransaction(session, targetUserId, TransactionType.TOPUP, amount, {
       performedBy: caller.userId,
       note: note || `Wallet top-up by ${caller.role}`,
-      reference: `TOPUP-${Date.now()}`,
+      reference: `TOPUP-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     });
     return { wallet, transaction };
   });
@@ -82,7 +92,7 @@ const transferToMerchantService = async (dto, caller) => {
   }
 
   return runInTransaction(async (session) => {
-    const reference = `TXFR-${Date.now()}`;
+    const reference = `TXFR-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
     const distributorResult = await applyTransaction(session, caller.userId, TransactionType.TRANSFER_DEBIT, amount, {
       performedBy: caller.userId,

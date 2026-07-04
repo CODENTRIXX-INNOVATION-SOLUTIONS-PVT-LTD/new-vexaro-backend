@@ -11,16 +11,19 @@ const router = Router();
 
 router.use(authMiddleware);
 
+// All roles that can top up their own wallet via Razorpay
+const TOPUP_ROLES = [UserRole.MERCHANT, UserRole.DISTRIBUTOR, UserRole.SUPER_ADMIN];
+
 router.post(
   '/razorpay/create-order',
-  requireRole(UserRole.MERCHANT, UserRole.DISTRIBUTOR),
+  requireRole(...TOPUP_ROLES),
   validateRequest({ body: schemas.createOrderSchema }),
   rzp.createOrder,
 );
 
 router.post(
   '/razorpay/verify',
-  requireRole(UserRole.MERCHANT, UserRole.DISTRIBUTOR),
+  requireRole(...TOPUP_ROLES),
   validateRequest({ body: schemas.verifyPaymentSchema }),
   rzp.verifyPayment,
 );

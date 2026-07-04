@@ -28,13 +28,14 @@ const paymentSchema = new mongoose.Schema(
     },
     razorpayPaymentId: {
       type:    String,
-      default: null,
       trim:    true,
-      // index defined via paymentSchema.index() below — sparse: true there
+      // NOT setting default: null — omitting the field entirely so the sparse
+      // unique index excludes pending payments (MongoDB 8+ treats explicit null
+      // as an indexed value, breaking sparse uniqueness on multiple nulls)
     },
     signature: {
       type:    String,
-      default: null,
+      // NOT defaulting to null — omit field on pending payments
     },
 
     // ── Financial fields ──────────────────────────────────────────────────────

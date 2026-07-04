@@ -11,7 +11,7 @@ const { createNotification } = require('../../notifications/notification.service
 const listCODService = async (query, caller) => {
   const filter = {};
 
-  if (caller.role === UserRole.MERCHANT)     filter.merchantId    = caller.userId;
+  if (caller.role === UserRole.MERCHANT)         filter.merchantId    = caller.userId;
   else if (caller.role === UserRole.DISTRIBUTOR) filter.distributorId = caller.userId;
 
   if (query.status) filter.status = query.status;
