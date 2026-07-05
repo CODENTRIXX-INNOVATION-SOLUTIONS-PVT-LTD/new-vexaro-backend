@@ -18,7 +18,7 @@ async function seed() {
       passwordHash,
       role: UserRole.SUPER_ADMIN,
       isActive: true,
-      mustChangeCredentials: false,
+      mustChangeCredentials: true,   // forced on first login
       firstName: 'Vishwas',
       lastName: 'Gour',
       phone: '9999999999',
