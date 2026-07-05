@@ -214,7 +214,7 @@ const creditCapturedPayment = async ({ payment, rzpPayment, signature = null, so
       update.$addToSet = { webhookEventIds: webhookEventId };
     }
 
-    const options = { new: true };
+    const options = { returnDocument: 'after' };
     if (session) options.session = session;
     const claimed = await Payment.findOneAndUpdate(query, update, options);
 

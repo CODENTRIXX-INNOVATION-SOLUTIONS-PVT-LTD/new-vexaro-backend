@@ -1,57 +1,41 @@
-// 'use strict';
-
-// const { AuditLog } = require('./audit-log.model');
-
-// /**
-//  * Logs a business audit event asynchronously
-//  */
-// const logAuditEvent = (userId, action, metadata = {}, targetId = null) => {
-//   const userIdStr = userId?.toString?.() || String(userId);
-//   const targetIdStr = targetId?.toString?.() || (targetId ? String(targetId) : null);
-
-//   setImmediate(async () => {
-//     try {
-//       await AuditLog.create({
-//         userId: userIdStr,
-//         action,
-//         metadata,
-//         targetId: targetIdStr,
-//       });
-//     } catch (err) {
-//       console.error('[AuditLog] Failed to write audit event:', err.message);
-//     }
-//   });
-// };
-
-// module.exports = {
-//   logAuditEvent,
-// };
-
-
-
-
 'use strict';
 
+const mongoose = require('mongoose');
 const { AuditLog } = require('./audit-log.model');
 
-const logAuditEvent = async (
-  userId,
-  action,
-  metadata = {},
-  targetId = null
-) => {
-  try {
-    await AuditLog.create({
-      userId,
-      action,
-      metadata,
-      targetId,
-    });
-  } catch (err) {
-    console.error('[AuditLog] Failed to write audit event:', err.message);
+/**
+ * Logs a business audit event fire-and-forget style.
+ *
+ * userId can be:
+ *  - A real MongoDB ObjectId / ObjectId string  → stored as-is
+ *  - null / undefined                            → stored as null (system events)
+ *  - The string "SYSTEM"                         → normalised to null
+ */
+const logAuditEvent = (userId, action, metadata = {}, targetId = null) => {
+  // Normalise userId — only store it if it's a valid ObjectId
+  let safeUserId = null;
+  if (userId && userId !== 'SYSTEM') {
+    const id = userId?.toString?.() ?? String(userId);
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      safeUserId = id;
+    }
   }
+
+  const safeTargetId = targetId ? String(targetId) : null;
+
+  // Fire-and-forget — never blocks the calling request
+  setImmediate(async () => {
+    try {
+      await AuditLog.create({
+        userId:   safeUserId,
+        action,
+        metadata,
+        targetId: safeTargetId,
+      });
+    } catch (err) {
+      console.error('[AuditLog] Failed to write audit event:', err.message);
+    }
+  });
 };
 
-module.exports = {
-  logAuditEvent,
-};
+module.exports = { logAuditEvent };

@@ -30,7 +30,7 @@ const create = (data) =>
 
 /** Mark a single notification as read. */
 const markAsRead = (id, userId) =>
-  Notification.findOneAndUpdate({ _id: id, userId }, { isRead: true }, { new: true });
+  Notification.findOneAndUpdate({ _id: id, userId }, { isRead: true }, { returnDocument: 'after' });
 
 /** Mark all notifications for a user as read. */
 const markAllAsRead = (userId) =>

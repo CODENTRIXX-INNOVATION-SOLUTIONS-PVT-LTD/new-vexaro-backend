@@ -107,7 +107,7 @@ const saveCod = (cod, options = {}) => cod.save(options);
 
 /** Update a COD record by _id. */
 const updateCodById = (id, update, options = {}) =>
-  COD.findByIdAndUpdate(id, update, { new: true, ...options });
+  COD.findByIdAndUpdate(id, update, { returnDocument: 'after', ...options });
 
 /** Run an aggregation on COD. */
 const aggregateCod = (pipeline) => COD.aggregate(pipeline);
@@ -189,7 +189,7 @@ const findRechargeRequestsPaginated = async (filter, { skip, limit, sort = { cre
 /** Update recharge request */
 const updateRechargeRequest = (id, update, session) => {
   const { RechargeRequest } = require('./recharge-request.model');
-  const opts = { new: true };
+  const opts = { returnDocument: 'after' };
   if (session) opts.session = session;
   return RechargeRequest.findByIdAndUpdate(id, update, opts);
 };

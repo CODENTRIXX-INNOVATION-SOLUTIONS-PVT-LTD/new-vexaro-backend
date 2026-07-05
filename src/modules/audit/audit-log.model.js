@@ -12,7 +12,8 @@ const auditLogSchema = new mongoose.Schema(
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      required: false,   // null = system-generated event (webhooks, cron jobs)
+      default: null,
       index: true,
     },
     targetId: {

@@ -57,7 +57,7 @@ const createInSession = (data, session) =>
 /** Update a shipment by _id, optionally within a session. */
 const findByIdAndUpdate = (id, update, options = {}) => {
   const { session, ...rest } = options;
-  const opts = { new: true, ...rest };
+  const opts = { returnDocument: 'after', ...rest };
   if (session) opts.session = session;
   return Shipment.findByIdAndUpdate(id, update, opts);
 };

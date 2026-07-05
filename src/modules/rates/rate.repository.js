@@ -25,7 +25,7 @@ const createCard = (data) => RateCard.create(data);
 
 /** Update a rate card by _id and return the updated document. */
 const updateCardById = (id, update, options = {}) =>
-  RateCard.findByIdAndUpdate(id, update, { new: true, runValidators: true, ...options });
+  RateCard.findByIdAndUpdate(id, update, { returnDocument: 'after', runValidators: true, ...options });
 
 // ─── Margin Configs ───────────────────────────────────────────────────────────
 
@@ -52,7 +52,7 @@ const findMarginsPaginated = async (filter, { skip, limit, sort = { createdAt: -
  * Upsert a margin config (finds by distributorId+rateCardId, or creates).
  */
 const upsertMargin = (filter, update, options = {}) =>
-  MarginConfig.findOneAndUpdate(filter, update, { upsert: true, new: true, runValidators: true, ...options });
+  MarginConfig.findOneAndUpdate(filter, update, { upsert: true, returnDocument: 'after', runValidators: true, ...options });
 
 module.exports = {
   // Rate Card

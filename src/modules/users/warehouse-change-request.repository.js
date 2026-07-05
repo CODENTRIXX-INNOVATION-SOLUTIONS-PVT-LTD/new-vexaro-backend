@@ -45,7 +45,7 @@ const findByDistributor = async (distributorId, filter = {}, { skip = 0, limit =
 
 /** Update a change request by ID and return the updated document. */
 const update = (id, data, options = {}) =>
-  WarehouseChangeRequest.findByIdAndUpdate(id, data, { new: true, ...options });
+  WarehouseChangeRequest.findByIdAndUpdate(id, data, { returnDocument: 'after', ...options });
 
 /** Count requests for a merchant matching a filter. */
 const countByMerchant = (merchantId, filter = {}) =>
