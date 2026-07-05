@@ -29,7 +29,7 @@ const debitWallet = async (session, wallet, amount) => {
   };
 
   const updatedWallet = await wallet.constructor.findOneAndUpdate(query, update, {
-    new: true,
+    returnDocument: 'after',
     session,
   });
 
@@ -61,7 +61,7 @@ const creditWallet = async (session, wallet, amount) => {
   };
 
   const updatedWallet = await wallet.constructor.findOneAndUpdate(query, update, {
-    new: true,
+    returnDocument: 'after',
     session,
   });
 

@@ -34,11 +34,11 @@ const findByIdAndMerchant = (warehouseId, merchantId) =>
 
 /** Update contact info for a warehouse. */
 const updateContact = (warehouseId, contactData, options = {}) =>
-  Warehouse.findByIdAndUpdate(warehouseId, { $set: contactData }, { new: true, ...options });
+  Warehouse.findByIdAndUpdate(warehouseId, { $set: contactData }, { returnDocument: 'after', ...options });
 
 /** Update address for a warehouse. */
 const updateAddress = (warehouseId, addressData, options = {}) =>
-  Warehouse.findByIdAndUpdate(warehouseId, { $set: addressData }, { new: true, ...options });
+  Warehouse.findByIdAndUpdate(warehouseId, { $set: addressData }, { returnDocument: 'after', ...options });
 
 /** Create one or more warehouse documents inside a session. */
 const createInSession = (data, session) =>
@@ -46,7 +46,7 @@ const createInSession = (data, session) =>
 
 /** Update a warehouse by its _id and return the updated document. */
 const findByIdAndUpdate = (id, update, options = {}) =>
-  Warehouse.findByIdAndUpdate(id, update, { new: true, ...options });
+  Warehouse.findByIdAndUpdate(id, update, { returnDocument: 'after', ...options });
 
 /** Save a warehouse document (triggers pre-save hooks). */
 const save = (warehouse, options = {}) => warehouse.save(options);

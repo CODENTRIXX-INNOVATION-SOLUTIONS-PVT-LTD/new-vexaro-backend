@@ -41,7 +41,7 @@ const createInSession = (data, session) =>
 
 /** Update a user by _id and return the updated document. */
 const findByIdAndUpdate = (id, update, options = {}) =>
-  User.findByIdAndUpdate(id, update, { new: true, ...options });
+  User.findByIdAndUpdate(id, update, { returnDocument: 'after', ...options });
 
 /** Save a user document (triggers pre-save hooks). */
 const save = (user, options = {}) => user.save(options);

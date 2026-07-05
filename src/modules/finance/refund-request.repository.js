@@ -55,7 +55,7 @@ const findAll = async (filter = {}, { page = 1, limit = 20 } = {}) => {
  * Update the status and review fields of a refund request inside a session.
  */
 const updateStatus = async (id, updates, session = null) => {
-  const opts = { new: true };
+  const opts = { returnDocument: 'after' };
   if (session) opts.session = session;
   return RefundRequest.findOneAndUpdate(
     { _id: id, deletedAt: null },

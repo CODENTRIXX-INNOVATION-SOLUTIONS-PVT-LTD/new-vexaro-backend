@@ -295,7 +295,7 @@ const createShipmentService = async (dto, caller) => {
       velocityBooked:     true,
       velocityBookedAt:   new Date(),
     },
-    { new: true }
+    { returnDocument: 'after' }
   );
 
   // 4. Notifications & Audits

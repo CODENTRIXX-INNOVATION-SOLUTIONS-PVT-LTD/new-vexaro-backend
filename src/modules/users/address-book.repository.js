@@ -65,7 +65,7 @@ const update = (id, merchantId, data) =>
   AddressBook.findOneAndUpdate(
     { _id: id, merchantId, deletedAt: null },
     data,
-    { new: true, runValidators: true }
+    { returnDocument: 'after', runValidators: true }
   );
 
 /**
@@ -78,7 +78,7 @@ const softDelete = (id, merchantId) =>
   AddressBook.findOneAndUpdate(
     { _id: id, merchantId, deletedAt: null },
     { deletedAt: new Date() },
-    { new: true }
+    { returnDocument: 'after' }
   );
 
 /**
@@ -91,7 +91,7 @@ const markAsUsed = (id, merchantId) =>
   AddressBook.findOneAndUpdate(
     { _id: id, merchantId, deletedAt: null },
     { lastUsedAt: new Date() },
-    { new: true }
+    { returnDocument: 'after' }
   );
 
 module.exports = {
