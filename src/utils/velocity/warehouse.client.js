@@ -8,46 +8,74 @@ class VelocityWarehouseClient {
     this.baseClient = baseClient;
   }
 
+  /**
+   * Normalise a phone number to a 10-digit string.
+   * Strips all non-digits and removes leading country code (91 prefix).
+   * Returns an empty string (not null) if phone is absent — keeps the
+   * Velocity payload valid even when phone is not provided.
+   */
   formatPhoneNumber(phone) {
-    const digits = String(phone || '').replace(/\D/g, '');
-    return digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : digits;
+    if (!phone) return '';
+    const digits = String(phone).replace(/\D/g, '');
+    if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
+    if (digits.length === 10) return digits;
+    // Return whatever we have — Velocity will validate on their end
+    return digits;
   }
 
   async createWarehouse(warehouse, merchantName = '') {
+    let response;
     try {
       const headers = await this.baseClient.getHeaders();
       const payload = {
-        name: warehouse.name || merchantName || `Warehouse-${warehouse.warehouseId}`,
-        phone_number: this.formatPhoneNumber(warehouse.phone),
-        email: warehouse.email || 'warehouse@vexaro.in',
-        contact_person: warehouse.contactPerson,
-        gst_no: warehouse.gstNo || undefined,
+        name:           warehouse.name || merchantName || `Warehouse-${warehouse.warehouseId}`,
+        phone_number:   this.formatPhoneNumber(warehouse.phone || ''),
+        email:          warehouse.email || 'warehouse@vexaro.in',
+        contact_person: warehouse.contactPerson || merchantName || 'Contact',
         address_attributes: {
           street_address: warehouse.address,
-          zip: warehouse.pincode,
-          city: warehouse.city,
-          state: warehouse.state,
-          country: warehouse.country || 'India',
+          zip:            warehouse.pincode,
+          city:           warehouse.city,
+          state:          warehouse.state,
+          country:        warehouse.country || 'India',
         },
       };
 
-      const response = await axios.post(
+      // Only include gst_no if it's actually set — Velocity rejects empty string
+      if (warehouse.gstNo) payload.gst_no = warehouse.gstNo;
+
+      response = await axios.post(
         `${this.baseClient.baseUrl}custom/api/v1/warehouse`,
         payload,
         { headers },
       );
-
-      if (response.data && response.data.status === 'SUCCESS') {
-        const wid = response.data.payload.warehouse_id;
-        logger.info('velocity_warehouse_created', { velocityWarehouseId: wid, warehouseName: warehouse.name });
-        return wid;
-      }
-      throw new Error(response.data?.message || 'Velocity returned non-SUCCESS status');
-    } catch (err) {
-      const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
-      logger.error('velocity_warehouse_create_failed', { error: detail });
-      throw Object.assign(new Error(`Velocity createWarehouse failed: ${detail}`), { statusCode: 502 });
+    } catch (httpErr) {
+      if (httpErr.statusCode) throw httpErr;
+      const detail = httpErr.response?.data
+        ? JSON.stringify(httpErr.response.data)
+        : httpErr.message;
+      logger.error('velocity_warehouse_create_http_failed', { error: detail });
+      throw Object.assign(
+        new Error(`Velocity createWarehouse failed: ${detail}`),
+        { statusCode: 502 },
+      );
     }
+
+    if (response.data?.status === 'SUCCESS') {
+      const wid = response.data.payload?.warehouse_id;
+      logger.info('velocity_warehouse_created', {
+        velocityWarehouseId: wid,
+        warehouseName:       warehouse.name || merchantName,
+      });
+      return wid;
+    }
+
+    const msg = response.data?.message || 'Velocity returned non-SUCCESS on warehouse create';
+    logger.warn('velocity_warehouse_create_non_success', { body: response.data });
+    throw Object.assign(
+      new Error(`Velocity createWarehouse failed: ${msg}`),
+      { statusCode: 502 },
+    );
   }
 }
 

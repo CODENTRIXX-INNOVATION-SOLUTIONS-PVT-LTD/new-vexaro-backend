@@ -1,6 +1,7 @@
 'use strict';
 
 const axios = require('axios');
+const logger = require('../logger');
 
 class VelocityRateClient {
   constructor(baseClient) {
@@ -8,46 +9,57 @@ class VelocityRateClient {
   }
 
   async checkServiceability(fromPincode, toPincode, isCOD = false, isForward = true) {
+    let response;
     try {
       const headers = await this.baseClient.getHeaders();
       const payload = {
-        from: fromPincode.toString(),
-        to: toPincode.toString(),
-        payment_mode: isCOD ? 'cod' : 'prepaid',
+        from:          fromPincode.toString(),
+        to:            toPincode.toString(),
+        payment_mode:  isCOD ? 'cod' : 'prepaid',
         shipment_type: isForward ? 'forward' : 'return',
       };
-
-      const response = await axios.post(
+      response = await axios.post(
         `${this.baseClient.baseUrl}custom/api/v1/serviceability`,
         payload,
         { headers },
       );
-
-      if (response.data && response.data.status === 'SUCCESS') {
-        return {
-          carriers: response.data.result.serviceability_results || [],
-          zone: response.data.result.zone || null,
-        };
-      }
-      throw new Error(response.data?.message || 'Serviceability check returned non-SUCCESS status');
-    } catch (err) {
-      const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
-      console.error('[VelocityClient] checkServiceability failed:', detail);
-      throw Object.assign(new Error(`Velocity serviceable check failed: ${detail}`), { statusCode: 502 });
+    } catch (httpErr) {
+      // Network / auth error — already tagged or wrap it
+      if (httpErr.statusCode) throw httpErr;
+      const detail = httpErr.response?.data
+        ? JSON.stringify(httpErr.response.data)
+        : httpErr.message;
+      logger.error('velocity_serviceability_http_failed', { error: detail });
+      throw Object.assign(
+        new Error(`Velocity serviceability check failed: ${detail}`),
+        { statusCode: 502 },
+      );
     }
+
+    if (response.data?.status === 'SUCCESS') {
+      return {
+        carriers: response.data.result?.serviceability_results || [],
+        zone:     response.data.result?.zone || null,
+      };
+    }
+
+    const msg = response.data?.message || 'Velocity serviceability returned non-SUCCESS status';
+    logger.warn('velocity_serviceability_non_success', { body: response.data });
+    throw Object.assign(new Error(`Velocity serviceability check failed: ${msg}`), { statusCode: 502 });
   }
 
   async getRates(params) {
+    let response;
     try {
       const headers = await this.baseClient.getHeaders();
       const payload = {
-        journey_type: params.journeyType,
-        origin_pincode: params.originPincode.toString(),
+        journey_type:        params.journeyType,
+        origin_pincode:      params.originPincode.toString(),
         destination_pincode: params.destinationPincode.toString(),
-        dead_weight: params.deadWeight,
-        length: params.length,
-        width: params.width,
-        height: params.height,
+        dead_weight:         params.deadWeight,
+        length:              params.length,
+        width:               params.width,
+        height:              params.height,
       };
 
       if (params.journeyType === 'forward') {
@@ -61,47 +73,64 @@ class VelocityRateClient {
         payload.qc_applicable = params.qcApplicable !== false;
       }
 
-      const response = await axios.post(
+      response = await axios.post(
         `${this.baseClient.baseUrl}custom/api/v1/rates`,
         payload,
         { headers },
       );
-
-      if (response.data && response.data.status === 'SUCCESS') {
-        return response.data.result;
-      }
-      throw new Error(response.data?.message || 'Velocity rates API returned non-SUCCESS status');
-    } catch (err) {
-      if (err.statusCode) throw err;
-      const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
-      console.error('[VelocityClient] getRates failed:', detail);
-      throw Object.assign(new Error(`Velocity rates fetch failed: ${detail}`), { statusCode: 502 });
+    } catch (httpErr) {
+      if (httpErr.statusCode) throw httpErr;
+      const detail = httpErr.response?.data
+        ? JSON.stringify(httpErr.response.data)
+        : httpErr.message;
+      logger.error('velocity_rates_http_failed', { error: detail });
+      throw Object.assign(
+        new Error(`Velocity rates fetch failed: ${detail}`),
+        { statusCode: 502 },
+      );
     }
+
+    if (response.data?.status === 'SUCCESS') {
+      return response.data.result;
+    }
+
+    const msg = response.data?.message || 'Velocity rates API returned non-SUCCESS status';
+    logger.warn('velocity_rates_non_success', { body: response.data });
+    throw Object.assign(new Error(`Velocity rates fetch failed: ${msg}`), { statusCode: 502 });
   }
 
   async getSummaryReport(startDateTime, endDateTime, shipmentType) {
+    let response;
     try {
       const headers = await this.baseClient.getHeaders();
-      const response = await axios.post(
+      response = await axios.post(
         `${this.baseClient.baseUrl}custom/api/v1/reports`,
         {
           start_date_time: startDateTime,
-          end_date_time: endDateTime,
-          shipment_type: shipmentType,
+          end_date_time:   endDateTime,
+          shipment_type:   shipmentType,
         },
         { headers },
       );
-
-      if (response.data && response.data.status === 'SUCCESS') {
-        return response.data.payload;
-      }
-      throw new Error(response.data?.message || 'Velocity reports API returned non-SUCCESS status');
-    } catch (err) {
-      if (err.statusCode) throw err;
-      const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
-      console.error('[VelocityClient] getSummaryReport failed:', detail);
-      throw Object.assign(new Error(`Velocity summary report failed: ${detail}`), { statusCode: 502 });
+    } catch (httpErr) {
+      if (httpErr.statusCode) throw httpErr;
+      const detail = httpErr.response?.data
+        ? JSON.stringify(httpErr.response.data)
+        : httpErr.message;
+      logger.error('velocity_summary_report_http_failed', { error: detail });
+      throw Object.assign(
+        new Error(`Velocity summary report failed: ${detail}`),
+        { statusCode: 502 },
+      );
     }
+
+    if (response.data?.status === 'SUCCESS') {
+      return response.data.payload;
+    }
+
+    const msg = response.data?.message || 'Velocity reports API returned non-SUCCESS status';
+    logger.warn('velocity_summary_report_non_success', { body: response.data });
+    throw Object.assign(new Error(`Velocity summary report failed: ${msg}`), { statusCode: 502 });
   }
 }
 
