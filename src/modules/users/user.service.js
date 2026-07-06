@@ -1,4 +1,4 @@
-"git add src/modules/users/user.service.jsuse strict";
+'use strict';
 
 const userRepository = require("./user.repository");
 const warehouseRepository = require("./warehouse.repository");

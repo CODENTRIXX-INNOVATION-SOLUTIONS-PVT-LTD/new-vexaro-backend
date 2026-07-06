@@ -40,8 +40,14 @@ const debitWallet = async (session, wallet, amount) => {
     throw Object.assign(new Error(`Insufficient wallet balance. Available: ₹${current.balance.toFixed(2)}`), { statusCode: 400 });
   }
 
-  wallet.balance = updatedWallet.balance;
-  return wallet;
+  // Derive balanceBefore from the DB result — NOT from the stale in-memory snapshot.
+  // Using the in-memory value is wrong under concurrency: two concurrent debits both
+  // read the same pre-$inc balance, so both ledger records get the same balanceBefore.
+  const balanceAfter  = updatedWallet.balance;
+  const balanceBefore = balanceAfter + amount; // $inc: -amount  →  before = after + amount
+
+  wallet.balance = balanceAfter;
+  return { wallet, balanceBefore, balanceAfter };
 };
 
 /**
@@ -71,8 +77,12 @@ const creditWallet = async (session, wallet, amount) => {
     if (!current.isActive) throw Object.assign(new Error('Wallet is inactive'), { statusCode: 400 });
   }
 
-  wallet.balance = updatedWallet.balance;
-  return wallet;
+  // Derive balanceBefore from the DB result — NOT from the stale in-memory snapshot.
+  const balanceAfter  = updatedWallet.balance;
+  const balanceBefore = balanceAfter - amount; // $inc: +amount  →  before = after - amount
+
+  wallet.balance = balanceAfter;
+  return { wallet, balanceBefore, balanceAfter };
 };
 
 /**

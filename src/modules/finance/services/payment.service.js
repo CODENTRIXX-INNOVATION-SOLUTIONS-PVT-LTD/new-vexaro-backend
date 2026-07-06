@@ -31,12 +31,12 @@ const applyTransaction = async (session, userId, type, amount, meta = {}) => {
     TransactionType.RTO_CHARGE
   ].includes(type);
 
-  const balanceBefore = wallet.balance;
+  let balanceBefore, balanceAfter;
 
   if (isDebit) {
-    await debitWallet(session, wallet, amount);
+    ({ wallet, balanceBefore, balanceAfter } = await debitWallet(session, wallet, amount));
   } else {
-    await creditWallet(session, wallet, amount);
+    ({ wallet, balanceBefore, balanceAfter } = await creditWallet(session, wallet, amount));
   }
 
   const tx = await createWalletTransaction(session, Transaction, {
@@ -45,7 +45,7 @@ const applyTransaction = async (session, userId, type, amount, meta = {}) => {
     type,
     amount,
     balanceBefore,
-    balanceAfter: wallet.balance,
+    balanceAfter,
     ...meta,
   });
 
@@ -55,7 +55,7 @@ const applyTransaction = async (session, userId, type, amount, meta = {}) => {
     type,
     amount,
     balanceBefore,
-    balanceAfter:  wallet.balance,
+    balanceAfter,
     reference:     meta.reference || null,
     performedBy:   meta.performedBy || null,
     shipmentId:    meta.shipmentId || null,
