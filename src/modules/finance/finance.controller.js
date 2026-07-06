@@ -10,7 +10,36 @@ const {
   listRechargeRequestsService, createRechargeRequestService, approveRechargeRequestService, rejectRechargeRequestService,
 } = require('./finance.service');
 
+const {
+  createMerchantRechargeRequestService,
+  listMerchantRechargeRequestsService,
+  approveMerchantRechargeRequestService,
+  rejectMerchantRechargeRequestService,
+} = require('./services/merchant-recharge-request.service');
+
 const wrap = wrapController;
+
+// ─── Merchant Recharge Requests ─────────────────────────────────────────────
+
+exports.createMerchantRechargeRequest = wrap(async (req, res) =>
+  created(res, 'Top-up request submitted successfully', await createMerchantRechargeRequestService(req.validated.body, req.user)),
+);
+
+exports.listMerchantRechargeRequests = wrap(async (req, res) => {
+  const query = req.validated.query;
+  const { page, limit } = getPaginationParams(query, 20);
+  const { items, total } = await listMerchantRechargeRequestsService(query, req.user);
+  const meta = buildPaginationMeta(total, page, limit);
+  paginated(res, 'Merchant recharge requests retrieved', { requests: items }, meta);
+});
+
+exports.approveMerchantRechargeRequest = wrap(async (req, res) =>
+  success(res, 'Request approved and wallet credited', await approveMerchantRechargeRequestService(req.validated.params.id, req.user)),
+);
+
+exports.rejectMerchantRechargeRequest = wrap(async (req, res) =>
+  success(res, 'Request rejected', await rejectMerchantRechargeRequestService(req.validated.params.id, req.validated.body, req.user)),
+);
 
 // Wallet
 exports.getMyWallet     = wrap(async (req, res) => success(res, 'Wallet retrieved', await getMyWalletService(req.user)));

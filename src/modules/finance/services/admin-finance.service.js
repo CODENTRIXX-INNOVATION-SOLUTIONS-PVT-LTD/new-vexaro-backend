@@ -65,9 +65,9 @@ const rechargeDistributorWalletService = async (dto, caller) => {
   }
 
   return runInTransaction(async (session) => {
-    const reference = `ADMIN-TRANSFER-${Date.now()}`;
+    const baseReference = `ADMIN-TRANSFER-${Date.now()}`;
 
-    // Debit admin wallet
+    // Debit admin wallet — unique reference suffix prevents idempotency clash with credit
     const { transaction: adminTx } = await applyTransaction(
       session,
       caller.userId,
@@ -76,13 +76,13 @@ const rechargeDistributorWalletService = async (dto, caller) => {
       {
         performedBy: caller.userId,
         note: `Transfer to distributor: ${distributor.email || distributor.companyName}`,
-        reference,
+        reference: `${baseReference}-DEBIT`,
         paymentMethod,
         referenceId,
       },
     );
 
-    // Credit distributor wallet
+    // Credit distributor wallet — separate reference so idempotency check doesn't skip this step
     const { wallet, transaction } = await applyTransaction(
       session,
       distributorId,
@@ -91,7 +91,7 @@ const rechargeDistributorWalletService = async (dto, caller) => {
       {
         performedBy: caller.userId,
         note: `Wallet funded by admin via ${paymentMethod}`,
-        reference,
+        reference: `${baseReference}-CREDIT`,
         paymentMethod,
         referenceId,
       },
@@ -107,7 +107,7 @@ const rechargeDistributorWalletService = async (dto, caller) => {
         title: 'Wallet Funded',
         message: `₹${amount.toLocaleString('en-IN')} has been added to your wallet by the admin.`,
         type: 'PAYMENT',
-        meta: { reference, paymentMethod },
+        meta: { reference: baseReference, paymentMethod },
       });
     } catch (_) {}
 
@@ -198,25 +198,28 @@ const approveRechargeRequestService = async (requestId, caller) => {
   // Check admin wallet has sufficient balance before entering the transaction
   const adminWallet = await financeRepository.findWalletByUserId(caller.userId);
   if (!adminWallet) {
+    // Auto-create an empty wallet for SA so they get a proper balance error
+    const { Wallet } = require('../finance.model');
+    await Wallet.create({ userId: caller.userId, balance: 0 });
     throw Object.assign(
-      new Error('Admin wallet not found. Please top up your wallet first via Razorpay.'),
-      { statusCode: 404 },
+      new Error('Your admin wallet has ₹0 balance. Please top up via Razorpay before approving requests.'),
+      { statusCode: 400 },
     );
   }
   if (adminWallet.balance < request.amount) {
     throw Object.assign(
       new Error(
-        `Insufficient admin wallet balance. Available: ₹${adminWallet.balance.toLocaleString('en-IN')}, Required: ₹${request.amount.toLocaleString('en-IN')}`,
+        `Insufficient admin wallet balance. Your balance: ₹${adminWallet.balance.toLocaleString('en-IN')}, Required: ₹${request.amount.toLocaleString('en-IN')}. Please top up via Razorpay first.`,
       ),
       { statusCode: 400 },
     );
   }
 
   return runInTransaction(async (session) => {
-    const reference = `RECHARGE-REQ-${requestId}`;
+    const baseReference = `RECHARGE-REQ-${requestId}`;
     const distributorId = request.userId._id.toString();
 
-    // Debit admin wallet first
+    // Debit admin wallet first — unique reference suffix prevents idempotency clash with credit
     const { transaction: adminTx } = await applyTransaction(
       session,
       caller.userId,
@@ -225,11 +228,11 @@ const approveRechargeRequestService = async (requestId, caller) => {
       {
         performedBy: caller.userId,
         note: `Recharge request approved — transfer to distributor`,
-        reference,
+        reference: `${baseReference}-DEBIT`,
       },
     );
 
-    // Credit distributor wallet
+    // Credit distributor wallet — separate reference so idempotency check doesn't skip this step
     const { wallet, transaction } = await applyTransaction(
       session,
       distributorId,
@@ -238,7 +241,7 @@ const approveRechargeRequestService = async (requestId, caller) => {
       {
         performedBy: caller.userId,
         note: `Recharge request approved by admin`,
-        reference,
+        reference: `${baseReference}-CREDIT`,
       },
     );
 
@@ -258,7 +261,7 @@ const approveRechargeRequestService = async (requestId, caller) => {
         title: 'Recharge Request Approved',
         message: `Your recharge request of ₹${request.amount.toLocaleString('en-IN')} has been approved and credited to your wallet.`,
         type: 'PAYMENT',
-        meta: { requestId, reference },
+        meta: { requestId, reference: baseReference },
       });
     } catch (_) {}
 

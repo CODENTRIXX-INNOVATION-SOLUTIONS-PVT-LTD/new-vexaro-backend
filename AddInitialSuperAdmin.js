@@ -25,6 +25,8 @@ async function seed() {
       companyName: 'Vexaro',
       address: 'Bhopal',
     });
+
+
     console.log('✓ Super Admin created:', user._id.toString());
   }
 

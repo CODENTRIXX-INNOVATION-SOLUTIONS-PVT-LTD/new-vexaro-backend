@@ -92,17 +92,17 @@ const transferToMerchantService = async (dto, caller) => {
   }
 
   return runInTransaction(async (session) => {
-    const reference = `TXFR-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const baseReference = `TXFR-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
     const distributorResult = await applyTransaction(session, caller.userId, TransactionType.TRANSFER_DEBIT, amount, {
       performedBy: caller.userId,
-      reference,
+      reference: `${baseReference}-DEBIT`,
       note: note || `Transfer to merchant ${merchant.email}`,
     });
 
     const merchantResult = await applyTransaction(session, merchantId, TransactionType.TRANSFER_CREDIT, amount, {
       performedBy: caller.userId,
-      reference,
+      reference: `${baseReference}-CREDIT`,
       note: note || `Transfer from distributor ${caller.email}`,
     });
 
