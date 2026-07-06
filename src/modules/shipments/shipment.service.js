@@ -9,7 +9,14 @@ const { updateStatusService } = require('./services/shipment-status.service');
 const { bulkUploadService, processBulkUploadAsync } = require('./services/shipment-bulk.service');
 const { awbSearchService } = require('./services/shipment-tracking.service');
 const { shipmentStatsService } = require('./services/shipment-stats.service');
-const { checkServiceabilityService, getVelocityRatesService } = require('./services/shipment-velocity.service');
+const {
+  checkServiceabilityService,
+  getVelocityRatesService,
+  reattemptVelocityDeliveryService,
+  initiateVelocityRtoService,
+  listVelocityForwardShipmentsService,
+  listVelocityReturnShipmentsService,
+} = require('./services/shipment-velocity.service');
 const { createReverseShipmentService } = require('./services/shipment-reverse.service');
 const { updateShipmentStatusFromVelocityWebhook } = require('./services/shipment-webhook.service');
 
@@ -30,6 +37,10 @@ module.exports = {
   shipmentStatsService,
   checkServiceabilityService,
   getVelocityRatesService,
+  reattemptVelocityDeliveryService,
+  initiateVelocityRtoService,
+  listVelocityForwardShipmentsService,
+  listVelocityReturnShipmentsService,
   createReverseShipmentService,
   updateShipmentStatusFromVelocityWebhook,
 };

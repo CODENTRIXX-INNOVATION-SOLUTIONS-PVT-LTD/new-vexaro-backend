@@ -4,8 +4,12 @@ const { Shipment } = require('../shipment.model');
 const { velocityClient } = require('../../../utils/velocity');
 
 const awbSearchService = async (awb, caller) => {
+  const normalizedAwb = awb.trim().toUpperCase();
   const shipment = await Shipment.findOne({
-    awb:       awb.trim().toUpperCase(),
+    $or: [
+      { awb: normalizedAwb },
+      { carrierAWB: normalizedAwb },
+    ],
     deletedAt: null,
   })
     .populate('merchantId',    'firstName lastName email companyName')

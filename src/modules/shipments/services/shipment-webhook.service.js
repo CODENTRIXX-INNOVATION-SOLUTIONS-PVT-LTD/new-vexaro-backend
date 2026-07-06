@@ -11,6 +11,7 @@ const VELOCITY_EVENT_MAP = {
   ready_for_pickup:    ShipmentStatus.ORDER_CREATED,
   pickup_scheduled:    ShipmentStatus.ORDER_CREATED,
   not_picked:          ShipmentStatus.ORDER_CREATED,
+  processing:          ShipmentStatus.ORDER_CREATED,
   order_created:       ShipmentStatus.ORDER_CREATED,
   booked:              ShipmentStatus.ORDER_CREATED,
   pickup:              ShipmentStatus.PICKED_UP,
@@ -33,8 +34,20 @@ const VELOCITY_EVENT_MAP = {
   delivered:           ShipmentStatus.DELIVERED,
   rto:                 ShipmentStatus.RTO,
   rto_initiated:       ShipmentStatus.RTO,
+  rto_in_transit:      ShipmentStatus.RTO,
+  rto_need_attention:  ShipmentStatus.RTO,
   rto_delivered:       ShipmentStatus.RTO,
   return_to_origin:    ShipmentStatus.RTO,
+  return_rejected:     ShipmentStatus.CANCELLED,
+  return_pickup_scheduled: ShipmentStatus.ORDER_CREATED,
+  return_not_picked:   ShipmentStatus.DELIVERY_FAILED,
+  return_qc_failed:    ShipmentStatus.DELIVERY_FAILED,
+  return_in_transit:   ShipmentStatus.ARRIVED_AT_HUB,
+  return_delivered:    ShipmentStatus.DELIVERED,
+  return_cancelled:    ShipmentStatus.CANCELLED,
+  return_ndr_raised:   ShipmentStatus.DELIVERY_FAILED,
+  return_need_attention: ShipmentStatus.DELIVERY_FAILED,
+  rejected:            ShipmentStatus.CANCELLED,
   cancelled:           ShipmentStatus.CANCELLED,
   cancel:              ShipmentStatus.CANCELLED,
 };
@@ -133,9 +146,6 @@ const updateShipmentStatusFromVelocityWebhook = async (payload) => {
   }
   // Soft-delete only for CANCELLED coming from a webhook — not for RTO
   // (RTO shipments still need to be visible in the dashboard)
-  if (nextStatus === ShipmentStatus.CANCELLED) {
-    shipment.deletedAt = new Date();
-  }
 
   await shipment.save();
 

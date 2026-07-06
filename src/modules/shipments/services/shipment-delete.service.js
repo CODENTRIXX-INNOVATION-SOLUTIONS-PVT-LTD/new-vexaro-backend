@@ -19,7 +19,8 @@ const performCancellation = async (shipment, caller, session) => {
 
   // Refund merchant
   if (shipment.merchantCost > 0) {
-    await applyTransaction(session, shipment.merchantId.toString(), TransactionType.REFUND, shipment.merchantCost, {
+    const merchantIdStr = shipment.merchantId._id ? shipment.merchantId._id.toString() : shipment.merchantId.toString();
+    await applyTransaction(session, merchantIdStr, TransactionType.REFUND, shipment.merchantCost, {
       reference: `${ref}-MERCH`,
       shipmentId: shipment._id,
       performedBy: caller.userId,
@@ -29,7 +30,8 @@ const performCancellation = async (shipment, caller, session) => {
 
   // Refund distributor
   if (shipment.distributorId && shipment.distributorCost > 0) {
-    await applyTransaction(session, shipment.distributorId.toString(), TransactionType.REFUND, shipment.distributorCost, {
+    const distributorIdStr = shipment.distributorId._id ? shipment.distributorId._id.toString() : shipment.distributorId.toString();
+    await applyTransaction(session, distributorIdStr, TransactionType.REFUND, shipment.distributorCost, {
       reference: `${ref}-DIST`,
       shipmentId: shipment._id,
       performedBy: caller.userId,

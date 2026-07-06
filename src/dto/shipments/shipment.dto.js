@@ -41,6 +41,7 @@ const createShipmentSchema = z.object({
 
   warehouseId:   mongoIdSchema.optional(),
   distributorId: mongoIdSchema.optional(),
+  merchantId:    mongoIdSchema.optional(),
 
   carrierId: z.string().trim().optional(),
 });
@@ -85,7 +86,9 @@ const listShipmentsQuerySchema = z.object({
   status:       z.enum(Object.values(ShipmentStatus)).optional(),
   search:       z.string().trim().optional(),
   merchantId:   mongoIdSchema.optional(),
+  merchant:     mongoIdSchema.optional(),
   distributorId:mongoIdSchema.optional(),
+  distributor:  mongoIdSchema.optional(),
   warehouseId:  mongoIdSchema.optional(),
   dateFrom:     z.string().optional(),
   dateTo:       z.string().optional(),
@@ -127,9 +130,14 @@ const velocityRatesSchema = z.object({
     .trim()
     .length(6, 'destinationPincode must be exactly 6 digits')
     .regex(/^\d{6}$/, 'destinationPincode must contain only digits'),
+  deadWeight: z
+    .number({ error: 'deadWeight must be a positive number of grams' })
+    .positive('deadWeight must be > 0')
+    .optional(),
   deadWeightGrams: z
-    .number({ error: 'deadWeightGrams must be a positive number' })
-    .positive('deadWeightGrams must be > 0'),
+    .number({ error: 'deadWeightGrams must be a positive number of grams' })
+    .positive('deadWeightGrams must be > 0')
+    .optional(),
   length: z.number().positive('length must be > 0'),
   width:  z.number().positive('width must be > 0'),
   height: z.number().positive('height must be > 0'),
@@ -139,6 +147,13 @@ const velocityRatesSchema = z.object({
   shipmentValue: z.number().positive().optional(),
   qcApplicable: z.boolean().optional(),
 }).superRefine((data, ctx) => {
+  if (!data.deadWeight && !data.deadWeightGrams) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['deadWeight'],
+      message: 'deadWeight is required and must be the shipment weight in grams',
+    });
+  }
   if (data.journeyType === 'forward' && !data.paymentMethod) {
     ctx.addIssue({
       code:    'custom',
@@ -213,6 +228,33 @@ const createReverseShipmentSchema = z.object({
   carrierId:      z.string().trim().optional(),
 });
 
+const velocityNdrReattemptSchema = z.object({
+  awb: z.string().min(6).trim(),
+  updated_address: z.object({
+    address_line: z.string().trim().optional(),
+    landmark: z.string().trim().optional(),
+  }).optional(),
+  updated_phone_number: z.string().trim().optional(),
+  comments: z.string().trim().optional(),
+}).superRefine((data, ctx) => {
+  if (data.updated_address && !data.updated_address.address_line && !data.updated_address.landmark) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['updated_address'],
+      message: 'updated_address must include address_line or landmark',
+    });
+  }
+});
+
+const velocityRtoSchema = z.object({
+  awb: z.string().min(6).trim(),
+});
+
+const velocityOrderDetailsSchema = z.object({
+  page: z.number().int().min(1).optional(),
+  per_page: z.number().int().min(1).max(100).optional(),
+}).passthrough();
+
 module.exports = {
   createShipmentSchema,
   updateShipmentSchema,
@@ -222,4 +264,7 @@ module.exports = {
   serviceabilitySchema,
   velocityRatesSchema,
   createReverseShipmentSchema,
+  velocityNdrReattemptSchema,
+  velocityRtoSchema,
+  velocityOrderDetailsSchema,
 };

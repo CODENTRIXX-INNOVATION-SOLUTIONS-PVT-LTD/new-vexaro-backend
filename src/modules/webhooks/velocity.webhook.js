@@ -29,6 +29,11 @@ const getAuthToken = (req) => {
   return auth || req.headers['x-webhook-token'] || '';
 };
 
+const normalizeQcStatus = (value) => {
+  if (!value) return null;
+  return String(value).trim().toUpperCase().replace(/[\s-]+/g, '_');
+};
+
 // ── Event dispatcher ──────────────────────────────────────────────────────────
 const handleVelocityEvent = async (payload) => {
   const event = String(payload?.event || '').trim().toLowerCase();
@@ -47,10 +52,16 @@ const handleVelocityEvent = async (payload) => {
   // ── tracking_addition ──────────────────────────────────────────────────────
   if (event === 'tracking_addition') {
     const tracking = data.new_tracking || {};
+    const details = [
+      tracking.remarks || 'Velocity tracking update',
+      tracking.location ? `Location: ${tracking.location}` : null,
+      tracking.event_date_time ? `Event time: ${tracking.event_date_time}` : null,
+    ].filter(Boolean).join(' | ');
+
     await updateShipmentStatusFromVelocityWebhook({
       awb:     data.tracking_number,
       event:   data.status || tracking.status,
-      details: tracking.remarks || 'Velocity tracking update',
+      details,
     });
     return;
   }
@@ -79,7 +90,7 @@ const handleVelocityEvent = async (payload) => {
         return;
       }
 
-      shipment.qcStatus        = data.qc_status        || null;
+      shipment.qcStatus        = normalizeQcStatus(data.qc_status);
       shipment.qcFailureReason = data.qc_failure_reason || null;
       shipment.qcImages        = Array.isArray(data.qc_images) ? data.qc_images : [];
       shipment.qcCheckedAt     = new Date();

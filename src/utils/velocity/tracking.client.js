@@ -36,9 +36,8 @@ class VelocityTrackingClient {
       );
     }
 
-    // Velocity returns { status: 'SUCCESS', result: { [awb]: {...} } }
-    // Normalise: always return a plain object, never null/undefined
-    if (response.data?.status === 'SUCCESS') {
+    // Normalise: always return a plain object, never null/undefined.
+    if (response.data?.status === 'SUCCESS' || response.data?.result) {
       return response.data.result || {};
     }
 
