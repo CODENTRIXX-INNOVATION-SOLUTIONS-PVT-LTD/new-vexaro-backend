@@ -57,6 +57,16 @@ const refundPaymentSchema = z.object({
   reason: z.string().trim().min(5).max(500),
 });
 
+// ── Merchant → Distributor top-up request schemas ─────────────────────────────
+const createMerchantRechargeRequestSchema = z.object({
+  amount: moneySchema({ min: 1, max: 10000000 }),
+  note:   z.string().trim().max(500).optional(),
+});
+
+const rejectMerchantRechargeRequestSchema = z.object({
+  reason: z.string().trim().max(500).optional(),
+});
+
 module.exports = {
   ...legacy,
   ...razorpay,
@@ -71,5 +81,7 @@ module.exports = {
   rechargeWalletSchema,
   rejectRechargeRequestSchema,
   createRechargeRequestSchema,
+  createMerchantRechargeRequestSchema,
+  rejectMerchantRechargeRequestSchema,
   refundPaymentSchema,
 };

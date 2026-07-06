@@ -245,4 +245,36 @@ router.post(
   c.rejectRechargeRequest,
 );
 
+// ── Merchant → Distributor Top-up Requests ────────────────────────────────────
+// POST /api/finance/merchant-recharge-requests         — Merchant submits top-up request to distributor
+router.post(
+  "/merchant-recharge-requests",
+  requireRole(UserRole.MERCHANT),
+  validateRequest({ body: schemas.createMerchantRechargeRequestSchema }),
+  c.createMerchantRechargeRequest,
+);
+// GET  /api/finance/merchant-recharge-requests         — list (merchant=own, distributor=incoming)
+router.get(
+  "/merchant-recharge-requests",
+  validateRequest({ query: schemas.listQuerySchema }),
+  c.listMerchantRechargeRequests,
+);
+// POST /api/finance/merchant-recharge-requests/:id/approve — Distributor approves
+router.post(
+  "/merchant-recharge-requests/:id/approve",
+  requireRole(UserRole.DISTRIBUTOR),
+  validateRequest({ params: schemas.financeIdParamsSchema, body: emptyObjectSchema }),
+  c.approveMerchantRechargeRequest,
+);
+// POST /api/finance/merchant-recharge-requests/:id/reject  — Distributor rejects
+router.post(
+  "/merchant-recharge-requests/:id/reject",
+  requireRole(UserRole.DISTRIBUTOR),
+  validateRequest({
+    params: schemas.financeIdParamsSchema,
+    body:   schemas.rejectMerchantRechargeRequestSchema,
+  }),
+  c.rejectMerchantRechargeRequest,
+);
+
 module.exports = router;

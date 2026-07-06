@@ -8,7 +8,7 @@ const { Payment } = require('./payment.model');
 const { Wallet, Transaction } = require('./finance.model');
 const { UserRole, PaymentStatus, TransactionType } = require('../../constants');
 const { runInTransaction } = require('../../utils/transaction');
-const { applyTransaction } = require('./finance.service');
+const { applyTransaction } = require('./services/payment.service');
 const { createNotification } = require('../notifications/notification.service');
 const { getPaginationParams } = require('../../utils/pagination');
 const logger = require('../../utils/logger');
@@ -622,7 +622,6 @@ const refundPaymentService = async (paymentId, amount, reason, caller) => {
 
     // Debit wallet — reverse the earlier TOPUP credit so balance reflects the card refund
     return runInTransaction(async (session) => {
-      const { applyTransaction } = require('./finance.service');
       const refundAmountRupees = amount || payment.amountRupees;
       const reference = `REFUND-${rzpRefund.id}`;
       const { wallet, transaction } = await applyTransaction(
