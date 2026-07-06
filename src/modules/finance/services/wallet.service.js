@@ -124,7 +124,7 @@ const transferToMerchantService = async (dto, caller) => {
     return {
       distributorWallet: distributorResult.wallet,
       merchantWallet: merchantResult.wallet,
-      reference,
+      reference: baseReference,
     };
   });
 };
