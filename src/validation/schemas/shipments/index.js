@@ -12,6 +12,7 @@ const createShipmentSchema = legacy.createShipmentSchema.extend({
   height: z.number().positive().max(200).optional(),
   declaredValue: moneySchema({ min: 0, max: 1000000 }).optional(),
   codAmount: moneySchema({ min: 0, max: 50000 }).optional(),
+  merchantId: objectIdSchema.optional(),  // required for SA/Distributor booking on behalf of a merchant
 }).superRefine((data, ctx) => {
   // destination must be provided unless destinationAddressBookId is specified
   if (!data.destination && !data.destinationAddressBookId) {

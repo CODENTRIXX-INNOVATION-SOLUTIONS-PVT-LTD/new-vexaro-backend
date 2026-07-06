@@ -9,10 +9,15 @@ const { UserRole } = require('../../../constants');
 const buildShipmentFilter = (caller, query = {}) => {
   const filter = { deletedAt: null };
 
+  const mId = query.merchantId || query.merchant;
+  const dId = query.distributorId || query.distributor;
+  const wId = query.warehouseId || query.warehouse;
+
   // Scope by role first
   switch (caller.role) {
     case UserRole.DISTRIBUTOR:
       filter.distributorId = caller.userId;
+      if (mId) filter.merchantId = mId;
       break;
     case UserRole.MERCHANT:
       filter.merchantId = caller.userId;
@@ -25,9 +30,9 @@ const buildShipmentFilter = (caller, query = {}) => {
 
   // SA can optionally narrow down by these
   if (caller.role === UserRole.SUPER_ADMIN) {
-    if (query.merchantId)    filter.merchantId    = query.merchantId;
-    if (query.distributorId) filter.distributorId = query.distributorId;
-    if (query.warehouseId)   filter.warehouseId   = query.warehouseId;
+    if (mId) filter.merchantId    = mId;
+    if (dId) filter.distributorId = dId;
+    if (wId) filter.warehouseId   = wId;
   }
 
   // Common optional filters available to all roles

@@ -13,6 +13,10 @@ const {
   getBulkUploadStatus,
   checkServiceability,
   getVelocityRates,
+  reattemptVelocityDelivery,
+  initiateVelocityRto,
+  listVelocityForwardShipments,
+  listVelocityReturnShipments,
   createReverseShipment,
 } = require('./shipment.controller');
 const { UserRole } = require('../../constants');
@@ -66,6 +70,34 @@ router.post('/serviceability', validateRequest({ body: schemas.serviceabilitySch
 
 // POST /api/shipments/velocity-rates — live Velocity rate quote
 router.post('/velocity-rates', validateRequest({ body: schemas.velocityRatesSchema }), getVelocityRates);
+
+router.post(
+  '/velocity/ndr/reattempt',
+  requireRole(UserRole.SUPER_ADMIN, UserRole.DISTRIBUTOR, UserRole.MERCHANT),
+  validateRequest({ body: schemas.velocityNdrReattemptSchema }),
+  reattemptVelocityDelivery,
+);
+
+router.post(
+  '/velocity/ndr/rto',
+  requireRole(UserRole.SUPER_ADMIN, UserRole.DISTRIBUTOR, UserRole.MERCHANT),
+  validateRequest({ body: schemas.velocityRtoSchema }),
+  initiateVelocityRto,
+);
+
+router.post(
+  '/velocity/orders/forward',
+  requireRole(UserRole.SUPER_ADMIN, UserRole.DISTRIBUTOR),
+  validateRequest({ body: schemas.velocityOrderDetailsSchema }),
+  listVelocityForwardShipments,
+);
+
+router.post(
+  '/velocity/orders/returns',
+  requireRole(UserRole.SUPER_ADMIN, UserRole.DISTRIBUTOR),
+  validateRequest({ body: schemas.velocityOrderDetailsSchema }),
+  listVelocityReturnShipments,
+);
 
 // POST /api/shipments/reverse — create Velocity return shipment
 router.post(

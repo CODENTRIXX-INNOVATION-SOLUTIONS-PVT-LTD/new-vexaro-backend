@@ -277,14 +277,18 @@ const createRazorpayOrderService = async (dto, caller) => {
   }
 
   const wallet = await Wallet.findOne({ userId: caller.userId });
-  if (!wallet) {
-    // Auto-create wallet for SA on first top-up attempt
+  let activeWallet = wallet;
+
+  if (!activeWallet) {
     if (caller.role === UserRole.SUPER_ADMIN) {
+      // Auto-create wallet for SA on first top-up attempt
       await Wallet.create({ userId: caller.userId, balance: 0 });
+      activeWallet = await Wallet.findOne({ userId: caller.userId });
+      if (!activeWallet) throw Object.assign(new Error('Failed to initialise wallet'), { statusCode: 500 });
     } else {
       throw Object.assign(new Error('Wallet not found'), { statusCode: 404 });
     }
-  } else if (!wallet.isActive) {
+  } else if (!activeWallet.isActive) {
     throw Object.assign(new Error('Wallet is inactive'), { statusCode: 400 });
   }
 
@@ -297,7 +301,7 @@ const createRazorpayOrderService = async (dto, caller) => {
       receipt,
       notes: {
         userId: String(caller.userId),
-        walletId: String(wallet._id),
+        walletId: String(activeWallet._id),
         role: caller.role,
         purpose: 'wallet_topup',
       },
@@ -310,7 +314,7 @@ const createRazorpayOrderService = async (dto, caller) => {
 
   const payment = await Payment.create({
     userId: caller.userId,
-    walletId: wallet._id,
+    walletId: activeWallet._id,
     razorpayOrderId: order.id,
     amount: amountRupees,
     amountRupees,

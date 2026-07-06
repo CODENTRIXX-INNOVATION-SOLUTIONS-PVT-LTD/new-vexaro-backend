@@ -11,6 +11,10 @@ const {
   shipmentStatsService,
   checkServiceabilityService,
   getVelocityRatesService,
+  reattemptVelocityDeliveryService,
+  initiateVelocityRtoService,
+  listVelocityForwardShipmentsService,
+  listVelocityReturnShipmentsService,
   createReverseShipmentService,
 } = require('./shipment.service');
 const { BulkJob } = require('./bulk-job.model');
@@ -55,7 +59,7 @@ const trackByAWB = withErrorHandling(async (req, res) => {
     carrier: shipment.carrier,
     carrierAWB: shipment.carrierAWB,
     status: shipment.status,
-    history: (shipment.history || []).map(h => ({
+    history: (shipment.statusHistory || []).map(h => ({
       status: h.status,
       timestamp: h.timestamp,
       note: h.note,
@@ -236,6 +240,26 @@ const getVelocityRates = withErrorHandling(async (req, res) => {
   success(res, 'Velocity rates retrieved successfully', result);
 });
 
+const reattemptVelocityDelivery = withErrorHandling(async (req, res) => {
+  const result = await reattemptVelocityDeliveryService(req.validated.body);
+  success(res, 'Velocity reattempt requested successfully', result);
+});
+
+const initiateVelocityRto = withErrorHandling(async (req, res) => {
+  const result = await initiateVelocityRtoService(req.validated.body);
+  success(res, 'Velocity RTO requested successfully', result);
+});
+
+const listVelocityForwardShipments = withErrorHandling(async (req, res) => {
+  const result = await listVelocityForwardShipmentsService(req.validated.body);
+  success(res, 'Velocity forward shipments retrieved successfully', result);
+});
+
+const listVelocityReturnShipments = withErrorHandling(async (req, res) => {
+  const result = await listVelocityReturnShipmentsService(req.validated.body);
+  success(res, 'Velocity return shipments retrieved successfully', result);
+});
+
 // ─── POST /api/shipments/reverse ─────────────────────────────────────────────
 const createReverseShipment = withErrorHandling(async (req, res) => {
   const dto = req.validated.body;
@@ -256,5 +280,9 @@ module.exports = {
   getBulkUploadStatus,
   checkServiceability,
   getVelocityRates,
+  reattemptVelocityDelivery,
+  initiateVelocityRto,
+  listVelocityForwardShipments,
+  listVelocityReturnShipments,
   createReverseShipment,
 };

@@ -28,7 +28,7 @@ const getVelocityRatesService = async (dto) => {
     journeyType: dto.journeyType,
     originPincode: dto.originPincode,
     destinationPincode: dto.destinationPincode,
-    deadWeight: dto.deadWeightGrams,
+    deadWeight: dto.deadWeight ?? dto.deadWeightGrams,
     length: dto.length,
     width: dto.width,
     height: dto.height,
@@ -40,7 +40,27 @@ const getVelocityRatesService = async (dto) => {
   return result;
 };
 
+const reattemptVelocityDeliveryService = async (dto) => {
+  return velocityClient.reattemptDelivery(dto);
+};
+
+const initiateVelocityRtoService = async (dto) => {
+  return velocityClient.initiateRto(dto.awb);
+};
+
+const listVelocityForwardShipmentsService = async (filters) => {
+  return velocityClient.listForwardShipments(filters);
+};
+
+const listVelocityReturnShipmentsService = async (filters) => {
+  return velocityClient.listReturnShipments(filters);
+};
+
 module.exports = {
   checkServiceabilityService,
   getVelocityRatesService,
+  reattemptVelocityDeliveryService,
+  initiateVelocityRtoService,
+  listVelocityForwardShipmentsService,
+  listVelocityReturnShipmentsService,
 };

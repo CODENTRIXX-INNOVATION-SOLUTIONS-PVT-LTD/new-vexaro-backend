@@ -25,11 +25,23 @@ const listQuerySchema = z.object({
   shipmentId: mongoId.optional(),
 });
 
+const proofImageUrlSchema = z.string().trim().refine(
+  value => {
+    try {
+      new URL(value);
+      return true;
+    } catch {
+      return value.startsWith('/uploads/');
+    }
+  },
+  'Proof image must be a valid URL or uploaded file path',
+);
+
 const raiseWeightDisputeSchema = z.object({
   shipmentId:   mongoId,
   actualWeight: z.number().positive('Actual weight must be positive'),
   extraCharge:  z.number().min(0, 'Extra charge cannot be negative'),
-  proofImages:  z.array(z.string().url()).optional(),
+  proofImages:  z.array(proofImageUrlSchema).optional(),
 });
 
 const resolveWeightDisputeSchema = z.object({
@@ -37,7 +49,7 @@ const resolveWeightDisputeSchema = z.object({
 });
 
 const submitDisputeProofSchema = z.object({
-  proofImages: z.array(z.string().url()).min(1, 'At least one proof image is required'),
+  proofImages: z.array(proofImageUrlSchema).min(1, 'At least one proof image is required'),
 });
 
 const listWeightDisputesQuerySchema = z.object({

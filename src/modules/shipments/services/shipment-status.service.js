@@ -65,7 +65,8 @@ const updateStatusService = async (shipmentId, dto, caller) => {
       const ref = `RTO-${shipment.awb}`;
 
       // Deduct from merchant
-      await applyTransaction(session, shipment.merchantId.toString(), TransactionType.RTO_CHARGE, RTO_CHARGE_DEFAULT, {
+      const merchantIdStr = shipment.merchantId._id ? shipment.merchantId._id.toString() : shipment.merchantId.toString();
+      await applyTransaction(session, merchantIdStr, TransactionType.RTO_CHARGE, RTO_CHARGE_DEFAULT, {
         reference: `${ref}-MERCH`,
         shipmentId: shipment._id,
         performedBy: caller.userId,
@@ -74,7 +75,8 @@ const updateStatusService = async (shipmentId, dto, caller) => {
 
       // Deduct from distributor
       if (shipment.distributorId) {
-        await applyTransaction(session, shipment.distributorId.toString(), TransactionType.RTO_CHARGE, RTO_CHARGE_DEFAULT, {
+        const distributorIdStr = shipment.distributorId._id ? shipment.distributorId._id.toString() : shipment.distributorId.toString();
+        await applyTransaction(session, distributorIdStr, TransactionType.RTO_CHARGE, RTO_CHARGE_DEFAULT, {
           reference: `${ref}-DIST`,
           shipmentId: shipment._id,
           performedBy: caller.userId,

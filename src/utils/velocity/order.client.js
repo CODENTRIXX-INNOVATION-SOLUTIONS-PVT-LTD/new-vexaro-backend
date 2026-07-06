@@ -227,6 +227,72 @@ class VelocityOrderClient {
       throw Object.assign(new Error(`Velocity cancel failed: ${detail}`), { statusCode: 502 });
     }
   }
+
+  async reattemptDelivery(payload) {
+    try {
+      const headers = await this.baseClient.getHeaders();
+      const response = await axios.post(
+        `${this.baseClient.baseUrl}custom/api/v1/reattempt`,
+        payload,
+        { headers },
+      );
+      logger.info('velocity_reattempt_requested', { awb: payload.awb });
+      return response.data;
+    } catch (err) {
+      const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+      logger.error('velocity_reattempt_failed', { awb: payload.awb, error: detail });
+      throw Object.assign(new Error(`Velocity reattempt failed: ${detail}`), { statusCode: 502 });
+    }
+  }
+
+  async initiateRto(awb) {
+    try {
+      const headers = await this.baseClient.getHeaders();
+      const response = await axios.post(
+        `${this.baseClient.baseUrl}custom/api/v1/initiate-rto`,
+        { awb },
+        { headers },
+      );
+      logger.info('velocity_rto_requested', { awb });
+      return response.data;
+    } catch (err) {
+      const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+      logger.error('velocity_rto_failed', { awb, error: detail });
+      throw Object.assign(new Error(`Velocity initiate RTO failed: ${detail}`), { statusCode: 502 });
+    }
+  }
+
+  async listForwardShipments(filters = {}) {
+    try {
+      const headers = await this.baseClient.getHeaders();
+      const response = await axios.post(
+        `${this.baseClient.baseUrl}custom/api/v1/shipments`,
+        filters,
+        { headers },
+      );
+      return response.data;
+    } catch (err) {
+      const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+      logger.error('velocity_forward_shipments_failed', { error: detail });
+      throw Object.assign(new Error(`Velocity forward shipment details failed: ${detail}`), { statusCode: 502 });
+    }
+  }
+
+  async listReturnShipments(filters = {}) {
+    try {
+      const headers = await this.baseClient.getHeaders();
+      const response = await axios.post(
+        `${this.baseClient.baseUrl}custom/api/v1/returns`,
+        filters,
+        { headers },
+      );
+      return response.data;
+    } catch (err) {
+      const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+      logger.error('velocity_return_shipments_failed', { error: detail });
+      throw Object.assign(new Error(`Velocity return shipment details failed: ${detail}`), { statusCode: 502 });
+    }
+  }
 }
 
 module.exports = VelocityOrderClient;

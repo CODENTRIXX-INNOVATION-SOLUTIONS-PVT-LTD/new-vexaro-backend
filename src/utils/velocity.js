@@ -46,6 +46,22 @@ class VelocityClient {
     return this.orderClient.cancelOrders(awbs);
   }
 
+  async reattemptDelivery(payload) {
+    return this.orderClient.reattemptDelivery(payload);
+  }
+
+  async initiateRto(awb) {
+    return this.orderClient.initiateRto(awb);
+  }
+
+  async listForwardShipments(filters = {}) {
+    return this.orderClient.listForwardShipments(filters);
+  }
+
+  async listReturnShipments(filters = {}) {
+    return this.orderClient.listReturnShipments(filters);
+  }
+
   async getTrackingDetails(awbs) {
     return this.trackingClient.getTrackingDetails(awbs);
   }
