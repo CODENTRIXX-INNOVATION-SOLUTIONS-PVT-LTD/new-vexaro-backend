@@ -70,12 +70,16 @@ jest.mock('../../../src/utils/wallet', () => ({
         { statusCode: 400 },
       );
     }
+    const balanceBefore = wallet.balance;
     wallet.balance -= amount;
-    return wallet;
+    const balanceAfter = wallet.balance;
+    return { wallet, balanceBefore, balanceAfter };
   }),
   creditWallet: jest.fn().mockImplementation(async (_session, wallet, amount) => {
+    const balanceBefore = wallet.balance;
     wallet.balance += amount;
-    return wallet;
+    const balanceAfter = wallet.balance;
+    return { wallet, balanceBefore, balanceAfter };
   }),
   createWalletTransaction: jest.fn().mockImplementation(async (_session, _Model, data) => ({
     _id: 'mock-tx-id',

@@ -10,7 +10,7 @@ const logger = require('../../../utils/logger');
  * Apply credit/debit transaction on a user's wallet atomically.
  */
 const applyTransaction = async (session, userId, type, amount, meta = {}) => {
-  const wallet = await financeRepository.findWalletByUserId(userId, session);
+  let wallet = await financeRepository.findWalletByUserId(userId, session);
   if (!wallet) throw Object.assign(new Error('Wallet not found for user'), { statusCode: 404 });
   if (!wallet.isActive) throw Object.assign(new Error('Wallet is inactive'), { statusCode: 400 });
 

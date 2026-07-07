@@ -32,18 +32,23 @@ const VELOCITY_EVENT_MAP = {
   delivery_failed:     ShipmentStatus.DELIVERY_FAILED,
   'delivery failed':   ShipmentStatus.DELIVERY_FAILED,
   delivered:           ShipmentStatus.DELIVERED,
+  externally_fulfilled: ShipmentStatus.DELIVERED,
   rto:                 ShipmentStatus.RTO,
   rto_initiated:       ShipmentStatus.RTO,
+  rto_cancelled:       ShipmentStatus.DELIVERY_FAILED,
   rto_in_transit:      ShipmentStatus.RTO,
   rto_need_attention:  ShipmentStatus.RTO,
   rto_delivered:       ShipmentStatus.RTO,
+  rto_lost:            ShipmentStatus.DELIVERY_FAILED,
   return_to_origin:    ShipmentStatus.RTO,
   return_rejected:     ShipmentStatus.CANCELLED,
   return_pickup_scheduled: ShipmentStatus.ORDER_CREATED,
+  return_picked_up:    ShipmentStatus.PICKED_UP,
   return_not_picked:   ShipmentStatus.DELIVERY_FAILED,
   return_qc_failed:    ShipmentStatus.DELIVERY_FAILED,
   return_in_transit:   ShipmentStatus.ARRIVED_AT_HUB,
   return_delivered:    ShipmentStatus.DELIVERED,
+  return_lost:         ShipmentStatus.DELIVERY_FAILED,
   return_cancelled:    ShipmentStatus.CANCELLED,
   return_ndr_raised:   ShipmentStatus.DELIVERY_FAILED,
   return_need_attention: ShipmentStatus.DELIVERY_FAILED,
@@ -68,6 +73,48 @@ const findShipmentByAWB = (awb) => {
   });
 };
 
+const normalizeVelocityStatus = (value) => {
+  return String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+};
+
+const toDateOrNull = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const normalizeShipmentType = (value) => {
+  const shipmentType = String(value || '').trim().toLowerCase();
+  return ['forward', 'return', 'rto'].includes(shipmentType) ? shipmentType : null;
+};
+
+const applyVelocityWebhookFields = (shipment, payload) => {
+  const carrierAWB = payload.carrierAWB || payload.awb;
+  const estimatedDelivery = toDateOrNull(payload.estimatedDelivery);
+  const originalEstimatedDelivery = toDateOrNull(payload.originalEstimatedDelivery);
+  const deliveredAt = toDateOrNull(payload.deliveredAt);
+  const shipmentType = normalizeShipmentType(payload.shipmentType);
+
+  if (payload.velocityShipmentId) shipment.velocityShipmentId = String(payload.velocityShipmentId).trim();
+  if (payload.velocityOrderId) shipment.velocityOrderId = String(payload.velocityOrderId).trim();
+  if (payload.merchantOrderRef) shipment.merchantOrderRef = String(payload.merchantOrderRef).trim();
+  if (payload.carrierName) shipment.carrier = String(payload.carrierName).trim();
+  if (carrierAWB) shipment.carrierAWB = String(carrierAWB).trim().toUpperCase();
+  if (estimatedDelivery) shipment.estimatedDelivery = estimatedDelivery;
+  if (originalEstimatedDelivery) shipment.originalEstimatedDelivery = originalEstimatedDelivery;
+  if (deliveredAt) shipment.deliveredAt = deliveredAt;
+  if (payload.trackingUrl) shipment.trackingUrl = String(payload.trackingUrl).trim();
+  if (payload.subStatus) shipment.subStatus = String(payload.subStatus).trim();
+  if (shipmentType) shipment.shipmentType = shipmentType;
+};
+
+const canApplyWebhookStatus = (shipment, nextStatus) => {
+  if (nextStatus === shipment.status) return true;
+  if (shipment.status === ShipmentStatus.DELIVERED && nextStatus !== ShipmentStatus.DELIVERED) return false;
+  if (shipment.status === ShipmentStatus.CANCELLED && nextStatus !== ShipmentStatus.CANCELLED) return false;
+  return true;
+};
+
 /**
  * Main entry point called by velocity.webhook.js for:
  *   - status_change events
@@ -80,6 +127,7 @@ const findShipmentByAWB = (awb) => {
  */
 const updateShipmentStatusFromVelocityWebhook = async (payload) => {
   const { awb, event, details } = payload;
+  const eventId = payload.eventId ? String(payload.eventId).trim() : null;
 
   if (!awb || !event) {
     throw Object.assign(
@@ -101,48 +149,66 @@ const updateShipmentStatusFromVelocityWebhook = async (payload) => {
     );
   }
 
-  const normalizedEvent = String(event).trim().toLowerCase();
+  shipment.velocityWebhookEventIds = shipment.velocityWebhookEventIds || [];
+
+  if (eventId && shipment.velocityWebhookEventIds.includes(eventId)) {
+    logger.info('velocity_webhook_duplicate_ignored', {
+      awb: shipment.awb,
+      eventId,
+    });
+    return shipment;
+  }
+
+  applyVelocityWebhookFields(shipment, payload);
+
+  const normalizedEvent = normalizeVelocityStatus(event);
   const nextStatus = VELOCITY_EVENT_MAP[normalizedEvent];
 
   if (!nextStatus) {
     logger.warn('velocity_webhook_unknown_status_event', { awb, event });
-    throw Object.assign(
-      new Error(`Unsupported Velocity webhook event: "${event}"`),
-      { statusCode: 400 },
-    );
+    if (eventId) shipment.velocityWebhookEventIds.push(eventId);
+    await shipment.save();
+    return shipment;
   }
 
   // ── Idempotent: already at target status ─────────────────────────────────
   if (nextStatus === shipment.status) {
-    logger.info('velocity_webhook_status_already_current', { awb: shipment.awb, status: nextStatus });
+    if (eventId) shipment.velocityWebhookEventIds.push(eventId);
+    await shipment.save();
+    logger.info('velocity_webhook_status_already_current', {
+      awb: shipment.awb,
+      status: nextStatus,
+      eventId,
+    });
     return shipment;
   }
 
   // ── Guard invalid state-machine transitions ───────────────────────────────
   // ORDER_CREATED is allowed from any state (Velocity sometimes re-sends booked events).
-  if (!shipment.canTransitionTo(nextStatus) && nextStatus !== ShipmentStatus.ORDER_CREATED) {
+  if (!canApplyWebhookStatus(shipment, nextStatus)) {
     logger.warn('velocity_webhook_invalid_transition', {
       awb:    shipment.awb,
       from:   shipment.status,
       to:     nextStatus,
       event,
+      eventId,
     });
-    throw Object.assign(
-      new Error(`Cannot transition shipment ${shipment.awb} from ${shipment.status} → ${nextStatus}`),
-      { statusCode: 400 },
-    );
+    if (eventId) shipment.velocityWebhookEventIds.push(eventId);
+    await shipment.save();
+    return shipment;
   }
 
   // ── Apply the status ──────────────────────────────────────────────────────
   shipment.statusHistory.push({
     status:    nextStatus,
     updatedBy: null,
-    note:      details || `Velocity webhook: ${event}`,
+    note:      details || `Velocity webhook: ${event}${eventId ? ` (${eventId})` : ''}`,
   });
   shipment.status = nextStatus;
+  if (eventId) shipment.velocityWebhookEventIds.push(eventId);
 
   if (nextStatus === ShipmentStatus.DELIVERED) {
-    shipment.deliveredAt = new Date();
+    shipment.deliveredAt = toDateOrNull(payload.deliveredAt) || new Date();
   }
   // Soft-delete only for CANCELLED coming from a webhook — not for RTO
   // (RTO shipments still need to be visible in the dashboard)
@@ -153,6 +219,7 @@ const updateShipmentStatusFromVelocityWebhook = async (payload) => {
     awb:    shipment.awb,
     status: nextStatus,
     event,
+    eventId,
   });
 
   // ── COD: create escrow record on delivery ─────────────────────────────────

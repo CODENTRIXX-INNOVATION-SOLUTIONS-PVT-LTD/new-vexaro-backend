@@ -5,7 +5,7 @@ const { ShipmentStatus } = require('../../../constants');
 const legacy = require('../../../dto/shipments/shipment.dto');
 const { moneySchema, objectIdSchema } = require('../common/base.schemas');
 
-const createShipmentSchema = legacy.createShipmentSchema.extend({
+const createShipmentSchema = legacy.createShipmentSchema.safeExtend({
   weight: z.number().positive().max(50, 'Weight cannot exceed 50 kg'),
   length: z.number().positive().max(200).optional(),
   breadth: z.number().positive().max(200).optional(),
@@ -22,10 +22,11 @@ const createShipmentSchema = legacy.createShipmentSchema.extend({
       message: 'destination is required unless destinationAddressBookId is provided',
     });
   }
-  if (data.isCOD && (!data.codAmount || data.codAmount <= 0)) {
+  const isCOD = String(data.paymentMethod || '').toUpperCase() === 'COD' || data.isCOD === true;
+  if (isCOD && (!data.codAmount || data.codAmount <= 0)) {
     ctx.addIssue({ code: 'custom', path: ['codAmount'], message: 'COD amount is required when COD is enabled' });
   }
-  if (!data.isCOD && data.codAmount && data.codAmount > 0) {
+  if (!isCOD && data.codAmount && data.codAmount > 0) {
     ctx.addIssue({ code: 'custom', path: ['codAmount'], message: 'COD amount is only allowed for COD shipments' });
   }
   if (data.codAmount && data.declaredValue && data.codAmount > data.declaredValue) {

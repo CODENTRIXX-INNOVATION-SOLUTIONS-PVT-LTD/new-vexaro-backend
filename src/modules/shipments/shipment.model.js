@@ -44,6 +44,18 @@ const statusEventSchema = new mongoose.Schema(
 );
 
 // ─── Main Shipment schema ─────────────────────────────────────────────────────
+const orderItemSchema = new mongoose.Schema(
+  {
+    productName:  { type: String, required: true, trim: true },
+    sku:          { type: String, required: true, trim: true },
+    quantity:     { type: Number, required: true, min: 1 },
+    sellingPrice: { type: Number, required: true, min: 0 },
+    discount:     { type: Number, default: 0, min: 0 },
+    tax:          { type: Number, default: 0, min: 0 },
+  },
+  { _id: false },
+);
+
 const shipmentSchema = new mongoose.Schema(
   {
     // ── AWB (Air Waybill Number) — unique tracking ID ───────────────────────
@@ -91,6 +103,15 @@ const shipmentSchema = new mongoose.Schema(
     declaredValue:    { type: Number, default: 0, min: 0 },        // ₹
     isCOD:            { type: Boolean, default: false },
     codAmount:        { type: Number, default: 0, min: 0 },
+    paymentMethod:    {
+      type:    String,
+      enum:    ['COD', 'PREPAID'],
+      default: 'PREPAID',
+    },
+    orderItems:       { type: [orderItemSchema], default: [] },
+    subTotal:         { type: Number, default: 0, min: 0 },
+    totalDiscount:    { type: Number, default: 0, min: 0 },
+    totalTax:         { type: Number, default: 0, min: 0 },
     codCollected:     { type: Number, default: 0 },
     codStatus:        { type: String, enum: Object.values(ShipmentCODStatus), default: ShipmentCODStatus.PENDING },
     payoutStatus:     { type: String, enum: Object.values(ShipmentPayoutStatus), default: ShipmentPayoutStatus.PENDING },
@@ -125,8 +146,18 @@ const shipmentSchema = new mongoose.Schema(
     // ── Courier/carrier details ─────────────────────────────────────────────
     carrier:         { type: String, default: null },
     carrierAWB:      { type: String, default: null },
+    velocityCarrierId: { type: String, default: null },
     estimatedDelivery: { type: Date, default: null },
+    originalEstimatedDelivery: { type: Date, default: null },
     deliveredAt:     { type: Date, default: null },
+    trackingUrl:     { type: String, default: null },
+    subStatus:       { type: String, default: null },
+    shipmentType:    {
+      type:    String,
+      enum:    ['forward', 'return', 'rto'],
+      default: null,
+      index:   true,
+    },
 
     // ── Notes & references ───────────────────────────────────────────────────
     notes:            { type: String, default: null },
@@ -160,10 +191,18 @@ const shipmentSchema = new mongoose.Schema(
       type:    String,
       default: null,
     },
+    manifestUrl: {
+      type:    String,
+      default: null,
+    },
     isReturn: {
       type:    Boolean,
       default: false,
       index:   true,
+    },
+    velocityWebhookEventIds: {
+      type:    [String],
+      default: [],
     },
 
     // ── QC (Quality Check) fields for return shipments ─────────────────────────
@@ -199,6 +238,7 @@ shipmentSchema.index({ createdAt: -1, status: 1 });
 shipmentSchema.index({ merchantOrderRef: 1 }, { sparse: true });
 shipmentSchema.index({ deletedAt: 1 });
 shipmentSchema.index({ isCOD: 1, codStatus: 1 });
+shipmentSchema.index({ velocityWebhookEventIds: 1 }, { sparse: true });
 
 // ─── Instance methods ─────────────────────────────────────────────────────────
 
