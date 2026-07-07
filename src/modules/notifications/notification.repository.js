@@ -14,7 +14,7 @@ const findByIdAndUser = (id, userId) =>
 /** Paginated list of notifications for a user. Returns [notifications[], total, unreadCount]. */
 const findPaginated = async (filter, { skip, limit, sort = { isRead: 1, createdAt: -1 } } = {}) => {
   return Promise.all([
-    Notification.find(filter).sort(sort).skip(skip).limit(limit),
+    Notification.find(filter).populate('senderId', 'firstName lastName email role').sort(sort).skip(skip).limit(limit),
     Notification.countDocuments(filter),
     Notification.countDocuments({ userId: filter.userId, isRead: false }),
   ]);

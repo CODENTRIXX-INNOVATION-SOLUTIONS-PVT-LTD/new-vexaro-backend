@@ -45,6 +45,7 @@ const createMerchantRechargeRequestService = async (dto, caller) => {
   // Notify distributor
   try {
     await createNotification(merchant.invitedBy.toString(), {
+      senderId: merchant._id,
       title: 'Merchant Wallet Top-up Request',
       message: `${merchant.companyName || merchant.firstName} has requested a wallet top-up of ₹${amount.toLocaleString('en-IN')}.`,
       type: 'PAYMENT',

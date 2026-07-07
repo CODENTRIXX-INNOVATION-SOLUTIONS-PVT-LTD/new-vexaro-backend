@@ -301,6 +301,7 @@ const createShipmentService = async (dto, caller) => {
   // 4. Notifications & Audits
   try {
     await createNotification(merchantId, {
+      senderId: caller.userId,
       title: 'Shipment Booked',
       message: `Your shipment ${awb} has been booked via ${velocityResult.carrierName}. AWB: ${velocityResult.awb}. Cost: ₹${pricing.merchantCost.toFixed(2)}.`,
       type: 'SHIPMENT',

@@ -11,4 +11,14 @@ const markReadSchema = z.object({
   ids: z.array(mongoIdSchema).optional(),
 });
 
-module.exports = { listNotificationsQuerySchema, markReadSchema };
+const raiseQuerySchema = z.object({
+  subject: z.string().trim().min(3).max(100),
+  message: z.string().trim().min(10).max(1000),
+  orderId: z.union([mongoIdSchema, z.literal(""), z.literal(null)]).optional().nullable(),
+});
+
+module.exports = {
+  listNotificationsQuerySchema,
+  markReadSchema,
+  raiseQuerySchema,
+};

@@ -86,6 +86,7 @@ const createAddressChangeRequestService = async (warehouseId, dto, merchantId) =
 
   try {
     await createNotification(distributorId, {
+      senderId: merchant._id,
       title:   'New Warehouse Address Change Request',
       message: `Merchant ${merchant.firstName} ${merchant.lastName} requested address change for warehouse ${warehouse.warehouseId}.`,
       type:    'SYSTEM',
