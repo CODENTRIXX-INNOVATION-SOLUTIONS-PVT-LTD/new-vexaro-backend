@@ -108,11 +108,13 @@ const transferToMerchantService = async (dto, caller) => {
 
     try {
       await createNotification(caller.userId, {
+        senderId: caller.userId,
         title: 'Wallet Transfer Sent',
         message: `You transferred ₹${amount.toFixed(2)} to merchant ${merchant.fullName || merchant.email}.`,
         type: 'PAYMENT',
       });
       await createNotification(merchantId, {
+        senderId: caller.userId,
         title: 'Wallet Funds Received',
         message: `You received ₹${amount.toFixed(2)} from distributor ${caller.email}.`,
         type: 'PAYMENT',
