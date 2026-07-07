@@ -9,6 +9,24 @@ function formatPhoneNumber(phone) {
   return digits;
 }
 
+const roundMoney = (value) => Math.round(Number(value || 0) * 100) / 100;
+
+const buildForwardOrderItems = (shipment) => {
+  const items = Array.isArray(shipment.orderItems) ? shipment.orderItems : [];
+  return items.map((item) => ({
+    name:          item.productName,
+    sku:           item.sku,
+    units:         item.quantity,
+    selling_price: roundMoney(item.sellingPrice),
+    discount:      roundMoney(item.discount),
+    tax:           roundMoney(item.tax),
+  }));
+};
+
+const sumItemField = (items, field) => {
+  return roundMoney(items.reduce((sum, item) => sum + Number(item[field] || 0), 0));
+};
+
 class VelocityOrderClient {
   constructor(baseClient) {
     this.baseClient = baseClient;
@@ -35,6 +53,17 @@ class VelocityOrderClient {
         );
       }
 
+      const orderItems = buildForwardOrderItems(shipment);
+      if (!orderItems.length) {
+        throw Object.assign(
+          new Error(`Shipment "${shipment.awb}" has no order items. Add productName, sku, quantity, and sellingPrice before booking.`),
+          { statusCode: 422 },
+        );
+      }
+
+      const paymentMethod = shipment.paymentMethod || (shipment.isCOD ? 'COD' : 'PREPAID');
+      const subTotal = roundMoney(shipment.subTotal || shipment.declaredValue);
+
       const payload = {
         order_id: shipment.merchantOrderRef || shipment.awb,
         order_date: orderDate,
@@ -53,18 +82,12 @@ class VelocityOrderClient {
         shipping_is_billing: true,
         print_label: true,
 
-        order_items: [{
-          name: shipment.notes || 'Courier Parcel',
-          sku: shipment.merchantOrderRef || `VX-${shipment.awb}`,
-          units: 1,
-          selling_price: shipment.declaredValue || 1,
-          discount: 0,
-          tax: 0,
-        }],
+        order_items: orderItems,
 
-        payment_method: shipment.isCOD ? 'COD' : 'PREPAID',
-        sub_total: shipment.declaredValue || 0,
-        cod_collectible: shipment.isCOD ? (shipment.codAmount || 0) : 0,
+        payment_method: paymentMethod,
+        total_discount: roundMoney(shipment.totalDiscount || sumItemField(orderItems, 'discount')),
+        sub_total: subTotal,
+        cod_collectible: paymentMethod === 'COD' ? roundMoney(shipment.codAmount) : 0,
 
         length: shipment.length || 10,
         breadth: shipment.breadth || 10,
@@ -108,6 +131,7 @@ class VelocityOrderClient {
           carrierName: p.courier_name,
           carrierId: p.courier_company_id,
           labelUrl: p.label_url || null,
+          manifestUrl: p.manifest_url || p.manifestUrl || null,
           charges: p.charges || null,
         };
       }
