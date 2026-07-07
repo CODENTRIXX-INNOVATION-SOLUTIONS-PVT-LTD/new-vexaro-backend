@@ -55,6 +55,62 @@ const resolveAddressFromBook = async (addressBookId, merchantId) => {
   };
 };
 
+const roundMoney = (value) => Math.round(Number(value || 0) * 100) / 100;
+
+const normalizePaymentMethod = (dto) => {
+  const paymentMethod = String(dto.paymentMethod || (dto.isCOD ? 'COD' : 'PREPAID')).trim().toUpperCase();
+  return paymentMethod === 'COD' ? 'COD' : 'PREPAID';
+};
+
+const normalizeOrderItems = (dto, awb) => {
+  const sourceItems = Array.isArray(dto.orderItems) && dto.orderItems.length
+    ? dto.orderItems
+    : dto.productName || dto.sku || dto.sellingPrice !== undefined
+      ? [{
+        productName:  dto.productName,
+        sku:          dto.sku,
+        quantity:     dto.quantity || 1,
+        sellingPrice: dto.sellingPrice,
+        discount:     dto.discount || 0,
+        tax:          dto.tax || 0,
+      }]
+      : [{
+        productName:  dto.notes || dto.merchantOrderRef || awb,
+        sku:          dto.merchantOrderRef || awb,
+        quantity:     1,
+        sellingPrice: dto.declaredValue || 1,
+        discount:     0,
+        tax:          0,
+      }];
+
+  const orderItems = sourceItems.map((item) => ({
+    productName:  String(item.productName || item.name || '').trim(),
+    sku:          String(item.sku || '').trim(),
+    quantity:     Number(item.quantity || item.units || 1),
+    sellingPrice: roundMoney(item.sellingPrice ?? item.selling_price ?? 0),
+    discount:     roundMoney(item.discount || 0),
+    tax:          roundMoney(item.tax || 0),
+  }));
+
+  for (const item of orderItems) {
+    if (!item.productName || !item.sku || !item.quantity || item.quantity <= 0) {
+      throw Object.assign(new Error('Each order item must include productName, sku, quantity, and sellingPrice.'), { statusCode: 400 });
+    }
+  }
+
+  const totalDiscount = roundMoney(orderItems.reduce((sum, item) => sum + item.discount, 0));
+  const totalTax = roundMoney(orderItems.reduce((sum, item) => sum + item.tax, 0));
+  const subTotal = roundMoney(orderItems.reduce((sum, item) => {
+    return sum + (item.sellingPrice * item.quantity) - item.discount + item.tax;
+  }, 0));
+
+  if (subTotal <= 0) {
+    throw Object.assign(new Error('Order subtotal must be greater than zero.'), { statusCode: 400 });
+  }
+
+  return { orderItems, subTotal, totalDiscount, totalTax };
+};
+
 
 const createShipmentService = async (dto, caller) => {
   let merchantId;
@@ -124,6 +180,15 @@ const createShipmentService = async (dto, caller) => {
   }
 
   const awb = await generateUniqueAWB();
+  const paymentMethod = normalizePaymentMethod(dto);
+  const { orderItems, subTotal, totalDiscount, totalTax } = normalizeOrderItems(dto, awb);
+  const declaredValue = roundMoney(dto.declaredValue || subTotal);
+  const isCOD = paymentMethod === 'COD';
+  const codAmount = isCOD ? roundMoney(dto.codAmount || declaredValue) : 0;
+
+  if (isCOD && codAmount > declaredValue) {
+    throw Object.assign(new Error('COD amount cannot exceed order value.'), { statusCode: 400 });
+  }
 
   // Validate warehouse
   let finalWarehouseId = dto.warehouseId || null;
@@ -175,8 +240,8 @@ const createShipmentService = async (dto, caller) => {
     length: dto.length,
     breadth: dto.breadth,
     height: dto.height,
-    isCOD: dto.isCOD,
-    codAmount: dto.codAmount,
+    isCOD,
+    codAmount,
   });
 
   // 1. Transaction block for local draft creation and wallet charge
@@ -214,11 +279,16 @@ const createShipmentService = async (dto, caller) => {
         merchantCost:     pricing.merchantCost,
         vexaroProfit:     pricing.vexaroProfit,
         distributorProfit: pricing.distributorProfit,
-        declaredValue:    dto.declaredValue    ?? 0,
-        isCOD:            dto.isCOD            ?? false,
-        codAmount:        dto.codAmount        ?? 0,
-        codStatus:        dto.isCOD ? 'PENDING' : 'REMITTED',
-        payoutStatus:     dto.isCOD ? 'PENDING' : 'PAID',
+        declaredValue,
+        isCOD,
+        codAmount,
+        paymentMethod,
+        orderItems,
+        subTotal,
+        totalDiscount,
+        totalTax,
+        codStatus:        isCOD ? 'PENDING' : 'REMITTED',
+        payoutStatus:     isCOD ? 'PENDING' : 'PAID',
         serviceType:      dto.serviceType      ?? 'STANDARD',
         merchantOrderRef: dto.merchantOrderRef ?? null,
         invoiceNumber:    dto.invoiceNumber    ?? null,
@@ -289,7 +359,9 @@ const createShipmentService = async (dto, caller) => {
     {
       carrierAWB:         velocityResult.awb,
       carrier:            velocityResult.carrierName,
+      velocityCarrierId:  velocityResult.carrierId,
       labelUrl:           velocityResult.labelUrl,
+      manifestUrl:        velocityResult.manifestUrl,
       velocityShipmentId: velocityResult.shipmentId,
       velocityOrderId:    velocityResult.velocityOrderId,
       velocityBooked:     true,
@@ -330,6 +402,7 @@ const createShipmentService = async (dto, caller) => {
     carrierAWB: velocityResult.awb,
     carrier:    velocityResult.carrierName,
     labelUrl:   velocityResult.labelUrl,
+    manifestUrl: velocityResult.manifestUrl,
   };
 };
 

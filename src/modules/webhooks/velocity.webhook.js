@@ -14,7 +14,8 @@ const VELOCITY_IP_WHITELIST = ['15.207.255.190', '13.202.145.74'];
 const isIpWhitelisted = (req) => {
   const forwarded = req.headers['x-forwarded-for'];
   const clientIp  = forwarded ? forwarded.split(',')[0].trim() : (req.ip || '');
-  return VELOCITY_IP_WHITELIST.includes(clientIp);
+  const normalized = clientIp.replace(/^::ffff:/, '');
+  return VELOCITY_IP_WHITELIST.includes(normalized);
 };
 
 const getRawBody = (req) => {
@@ -24,15 +25,37 @@ const getRawBody = (req) => {
 };
 
 const getAuthToken = (req) => {
-  const auth = req.headers.authorization;
-  if (Array.isArray(auth)) return auth[0];
-  return auth || req.headers['x-webhook-token'] || '';
+  const raw = req.headers['x-api-key'] || req.headers['x-webhook-token'] || req.headers.authorization || '';
+  const token = Array.isArray(raw) ? raw[0] : raw;
+  return String(token)
+    .replace(/^(bearer|token|apikey|api-key)\s+/i, '')
+    .trim();
 };
 
 const normalizeQcStatus = (value) => {
   if (!value) return null;
   return String(value).trim().toUpperCase().replace(/[\s-]+/g, '_');
 };
+
+const buildShipmentPayload = (payload, data, event, details) => ({
+  awb:                       data.tracking_number,
+  carrierAWB:                data.tracking_number,
+  event,
+  eventId:                   payload.event_id,
+  eventTimestamp:            payload.event_timestamp,
+  details,
+  velocityShipmentId:        data.shipment_id,
+  velocityOrderId:           data.order_id,
+  merchantOrderRef:          data.order_external_id,
+  orderDisplayId:            data.order_display_id,
+  carrierName:               data.carrier_name,
+  estimatedDelivery:         data.estimated_delivery_date,
+  originalEstimatedDelivery: data.original_edd,
+  deliveredAt:               data.delivered_at,
+  trackingUrl:               data.tracking_url,
+  subStatus:                 data.sub_status,
+  shipmentType:              data.shipment_type,
+});
 
 // ── Event dispatcher ──────────────────────────────────────────────────────────
 const handleVelocityEvent = async (payload) => {
@@ -41,11 +64,12 @@ const handleVelocityEvent = async (payload) => {
 
   // ── status_change ──────────────────────────────────────────────────────────
   if (event === 'status_change') {
-    await updateShipmentStatusFromVelocityWebhook({
-      awb:     data.tracking_number,
-      event:   data.status,
-      details: `Velocity status_change: ${data.status || 'unknown'}${data.carrier_name ? ` via ${data.carrier_name}` : ''}`,
-    });
+    await updateShipmentStatusFromVelocityWebhook(buildShipmentPayload(
+      payload,
+      data,
+      data.status,
+      `Velocity status_change: ${data.status || 'unknown'}${data.sub_status ? ` (${data.sub_status})` : ''}${data.carrier_name ? ` via ${data.carrier_name}` : ''}`,
+    ));
     return;
   }
 
@@ -58,11 +82,12 @@ const handleVelocityEvent = async (payload) => {
       tracking.event_date_time ? `Event time: ${tracking.event_date_time}` : null,
     ].filter(Boolean).join(' | ');
 
-    await updateShipmentStatusFromVelocityWebhook({
-      awb:     data.tracking_number,
-      event:   data.status || tracking.status,
+    await updateShipmentStatusFromVelocityWebhook(buildShipmentPayload(
+      payload,
+      data,
+      data.status || tracking.status,
       details,
-    });
+    ));
     return;
   }
 
@@ -90,10 +115,31 @@ const handleVelocityEvent = async (payload) => {
         return;
       }
 
+      shipment.velocityWebhookEventIds = shipment.velocityWebhookEventIds || [];
+
+      if (payload.event_id && shipment.velocityWebhookEventIds.includes(payload.event_id)) {
+        logger.info('velocity_webhook_qc_duplicate_ignored', {
+          awb: shipment.awb,
+          eventId: payload.event_id,
+        });
+        return;
+      }
+
+      if (data.shipment_id) shipment.velocityShipmentId = String(data.shipment_id).trim();
+      if (data.order_id) shipment.velocityOrderId = String(data.order_id).trim();
+      if (data.order_external_id) shipment.merchantOrderRef = String(data.order_external_id).trim();
+      if (data.carrier_name) shipment.carrier = String(data.carrier_name).trim();
+      if (data.tracking_number) shipment.carrierAWB = String(data.tracking_number).trim().toUpperCase();
+      if (data.tracking_url) shipment.trackingUrl = String(data.tracking_url).trim();
+      if (data.sub_status) shipment.subStatus = String(data.sub_status).trim();
+      if (data.shipment_type && ['forward', 'return', 'rto'].includes(String(data.shipment_type).trim().toLowerCase())) {
+        shipment.shipmentType = String(data.shipment_type).trim().toLowerCase();
+      }
       shipment.qcStatus        = normalizeQcStatus(data.qc_status);
       shipment.qcFailureReason = data.qc_failure_reason || null;
       shipment.qcImages        = Array.isArray(data.qc_images) ? data.qc_images : [];
       shipment.qcCheckedAt     = new Date();
+      if (payload.event_id) shipment.velocityWebhookEventIds.push(payload.event_id);
       await shipment.save();
 
       logger.info('velocity_webhook_qc_status_updated', {
@@ -126,7 +172,7 @@ webhookRouter.post('/velocity', express.raw({ type: '*/*' }), async (req, res) =
 
   // 2. Token auth
   const receivedToken = getAuthToken(req);
-  const expectedToken = env.VELOCITY_WEBHOOK_SECRET;
+  const expectedToken = String(env.VELOCITY_WEBHOOK_SECRET || '').trim();
 
   if (!expectedToken) {
     logger.error('velocity_webhook_secret_missing');
@@ -151,28 +197,30 @@ webhookRouter.post('/velocity', express.raw({ type: '*/*' }), async (req, res) =
   res.status(200).json({ received: true });
 
   // 5. Process asynchronously with timeout guard
-  try {
-    logger.info('velocity_webhook_received', {
-      event:   payload.event,
-      eventId: payload.event_id || null,
-      awb:     payload.data?.tracking_number || null,
-    });
+  setImmediate(async () => {
+    try {
+      logger.info('velocity_webhook_received', {
+        event:   payload.event,
+        eventId: payload.event_id || null,
+        awb:     payload.data?.tracking_number || null,
+      });
 
-    const timeout = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Webhook processing timeout (10 s)')), 10_000),
-    );
+      const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Webhook processing timeout (10 s)')), 10_000),
+      );
 
-    await Promise.race([handleVelocityEvent(payload), timeout]);
-  } catch (err) {
-    // 404 = shipment not in our system — log as warning, not error
-    const level = err.statusCode === 404 ? 'warn' : 'error';
-    logger[level]('velocity_webhook_processing_failed', {
-      event:   payload.event,
-      eventId: payload.event_id || null,
-      awb:     payload.data?.tracking_number || null,
-      error:   err.message,
-    });
-  }
+      await Promise.race([handleVelocityEvent(payload), timeout]);
+    } catch (err) {
+      // 404 = shipment not in our system; log as warning, not processing failure.
+      const level = err.statusCode === 404 ? 'warn' : 'error';
+      logger[level]('velocity_webhook_processing_failed', {
+        event:   payload.event,
+        eventId: payload.event_id || null,
+        awb:     payload.data?.tracking_number || null,
+        error:   err.message,
+      });
+    }
+  });
 });
 
 module.exports = { webhookRouter };

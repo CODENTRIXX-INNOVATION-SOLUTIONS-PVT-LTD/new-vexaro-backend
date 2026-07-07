@@ -14,6 +14,15 @@ const addressSchema = z.object({
   country:     z.string().trim().optional(),
 });
 
+const forwardOrderItemSchema = z.object({
+  productName:  z.string().min(1, 'Product name is required').trim(),
+  sku:          z.string().min(1, 'SKU is required').trim(),
+  quantity:     z.number().int().positive('Quantity must be a positive integer'),
+  sellingPrice: z.number().min(0, 'Selling price cannot be negative'),
+  discount:     z.number().min(0, 'Discount cannot be negative').optional().default(0),
+  tax:          z.number().min(0, 'Tax cannot be negative').optional().default(0),
+});
+
 // ─── Create shipment ───────────────────────────────────────────────────────────
 const createShipmentSchema = z.object({
   // Address fields — can be auto-populated via address book IDs server-side
@@ -32,6 +41,15 @@ const createShipmentSchema = z.object({
   declaredValue: z.number().min(0).optional(),
   isCOD:         z.boolean().optional(),
   codAmount:     z.number().min(0).optional(),
+  paymentMethod: z.enum(['COD', 'PREPAID', 'cod', 'prepaid']).optional(),
+
+  productName:  z.string().trim().optional(),
+  sku:          z.string().trim().optional(),
+  quantity:     z.number().int().positive().optional(),
+  sellingPrice: z.number().min(0).optional(),
+  discount:     z.number().min(0).optional(),
+  tax:          z.number().min(0).optional(),
+  orderItems:   z.array(forwardOrderItemSchema).optional(),
 
   serviceType: z.enum(Object.values(ShipmentServiceType)).optional(),
 
@@ -44,6 +62,35 @@ const createShipmentSchema = z.object({
   merchantId:    mongoIdSchema.optional(),
 
   carrierId: z.string().trim().optional(),
+}).superRefine((data, ctx) => {
+  const hasSingleItem = Boolean(data.productName || data.sku || data.quantity || data.sellingPrice !== undefined);
+  if (hasSingleItem) {
+    if (!data.productName) ctx.addIssue({ code: 'custom', path: ['productName'], message: 'Product name is required' });
+    if (!data.sku) ctx.addIssue({ code: 'custom', path: ['sku'], message: 'SKU is required' });
+    if (!data.quantity) ctx.addIssue({ code: 'custom', path: ['quantity'], message: 'Quantity is required' });
+    if (data.sellingPrice === undefined) ctx.addIssue({ code: 'custom', path: ['sellingPrice'], message: 'Selling price is required' });
+  }
+
+  const itemSource = data.orderItems?.length
+    ? data.orderItems
+    : hasSingleItem
+      ? [{
+        productName:  data.productName,
+        sku:          data.sku,
+        quantity:     data.quantity,
+        sellingPrice: data.sellingPrice,
+        discount:     data.discount || 0,
+        tax:          data.tax || 0,
+      }]
+      : [];
+
+  const subTotal = itemSource.reduce((sum, item) => {
+    return sum + (Number(item.sellingPrice || 0) * Number(item.quantity || 0)) - Number(item.discount || 0) + Number(item.tax || 0);
+  }, 0);
+  const paymentMethod = String(data.paymentMethod || (data.isCOD ? 'COD' : 'PREPAID')).toUpperCase();
+  if (paymentMethod === 'COD' && data.codAmount !== undefined && data.codAmount > Math.max(subTotal, data.declaredValue || 0)) {
+    ctx.addIssue({ code: 'custom', path: ['codAmount'], message: 'COD amount cannot exceed order value' });
+  }
 });
 
 // ─── Update shipment (non-status fields) ──────────────────────────────────────
