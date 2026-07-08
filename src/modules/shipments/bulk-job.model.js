@@ -63,7 +63,7 @@ const bulkJobSchema = new mongoose.Schema(
     // Per-row error messages (trimmed to max 200 entries to cap document size)
     // Named rowErrors to avoid collision with Mongoose's reserved 'errors' path
     rowErrors: {
-      type:    [String],
+      type:    [mongoose.Schema.Types.Mixed],
       default: [],
     },
     // Optional error message if the entire job fails (e.g. CSV parse error)

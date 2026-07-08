@@ -29,7 +29,12 @@ const findByWarehouse = (warehouseId, status) => {
 const findByMerchant = async (merchantId, filter = {}, { skip = 0, limit = 20, sort = { createdAt: -1 } } = {}) => {
   const query = { merchantId, ...filter };
   return Promise.all([
-    WarehouseChangeRequest.find(query).sort(sort).skip(skip).limit(limit),
+    WarehouseChangeRequest.find(query)
+      .populate('warehouseId', 'warehouseId name address city state pincode country')
+      .populate('merchantId', 'firstName lastName companyName email phone')
+      .sort(sort)
+      .skip(skip)
+      .limit(limit),
     WarehouseChangeRequest.countDocuments(query),
   ]);
 };
@@ -38,7 +43,12 @@ const findByMerchant = async (merchantId, filter = {}, { skip = 0, limit = 20, s
 const findByDistributor = async (distributorId, filter = {}, { skip = 0, limit = 20, sort = { createdAt: -1 } } = {}) => {
   const query = { distributorId, ...filter };
   return Promise.all([
-    WarehouseChangeRequest.find(query).sort(sort).skip(skip).limit(limit),
+    WarehouseChangeRequest.find(query)
+      .populate('warehouseId', 'warehouseId name address city state pincode country')
+      .populate('merchantId', 'firstName lastName companyName email phone')
+      .sort(sort)
+      .skip(skip)
+      .limit(limit),
     WarehouseChangeRequest.countDocuments(query),
   ]);
 };

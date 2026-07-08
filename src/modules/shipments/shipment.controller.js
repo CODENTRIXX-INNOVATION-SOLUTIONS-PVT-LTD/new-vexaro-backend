@@ -18,7 +18,7 @@ const {
   createReverseShipmentService,
 } = require('./shipment.service');
 const { BulkJob } = require('./bulk-job.model');
-const { REQUIRED_CSV_COLS } = require('./shared/shipment.constants');
+const { REQUIRED_CSV_COLS, REQUIRED_CSV_ONE_OF_COLS } = require('./shared/shipment.constants');
 const { success, created, paginated } = require('../../utils');
 const { wrapController } = require('../../utils/errors');
 const { getPaginationParams, buildPaginationMeta } = require('../../utils/pagination');
@@ -55,6 +55,14 @@ const trackByAWB = withErrorHandling(async (req, res) => {
   const { awb } = req.validated.params;
   const shipment = await awbSearchService(awb, req.user);
   
+  const statusHistory = (shipment.statusHistory || []).map(h => ({
+    status: h.status,
+    timestamp: h.timestamp,
+    note: h.note,
+  }));
+  const fallbackTrackingUrl = shipment.trackingUrl
+    || (shipment.carrierAWB ? `https://www.velocityshipping.in/track/${shipment.carrierAWB}` : null);
+
   const safeData = {
     awb: shipment.awb,
     carrier: shipment.carrier,
@@ -62,25 +70,38 @@ const trackByAWB = withErrorHandling(async (req, res) => {
     velocityShipmentId: shipment.velocityShipmentId,
     velocityOrderId: shipment.velocityOrderId,
     merchantOrderRef: shipment.merchantOrderRef,
-    trackingUrl: shipment.trackingUrl,
+    trackingUrl: fallbackTrackingUrl,
     subStatus: shipment.subStatus,
     shipmentType: shipment.shipmentType,
+    isReturn: shipment.isReturn,
+    qcStatus: shipment.qcStatus,
+    qcFailureReason: shipment.qcFailureReason,
+    qcImages: shipment.qcImages,
+    qcCheckedAt: shipment.qcCheckedAt,
     estimatedDelivery: shipment.estimatedDelivery,
     originalEstimatedDelivery: shipment.originalEstimatedDelivery,
     deliveredAt: shipment.deliveredAt,
     status: shipment.status,
-    history: (shipment.statusHistory || []).map(h => ({
-      status: h.status,
-      timestamp: h.timestamp,
-      note: h.note,
-    })),
+    history: statusHistory,
+    statusHistory,
     origin: {
+      name: shipment.origin?.name,
+      phone: shipment.origin?.phone,
+      addressLine: shipment.origin?.addressLine,
       city: shipment.origin?.city,
       state: shipment.origin?.state,
+      pincode: shipment.origin?.pincode,
+      country: shipment.origin?.country,
     },
     destination: {
+      name: shipment.destination?.name,
+      phone: shipment.destination?.phone,
+      email: shipment.destination?.email,
+      addressLine: shipment.destination?.addressLine,
       city: shipment.destination?.city,
       state: shipment.destination?.state,
+      pincode: shipment.destination?.pincode,
+      country: shipment.destination?.country,
     },
     weight: shipment.weight,
     serviceType: shipment.serviceType,
@@ -154,6 +175,13 @@ const bulkUpload = withErrorHandling(async (req, res) => {
         { statusCode: 400 },
       );
     }
+    const missingAny = REQUIRED_CSV_ONE_OF_COLS.filter(group => !group.some(col => headers.includes(col)));
+    if (missingAny.length) {
+      throw Object.assign(
+        new Error(`Excel missing one of required columns: ${missingAny.map(group => group.join(' or ')).join(', ')}`),
+        { statusCode: 400 },
+      );
+    }
     } catch (xlsxErr) {
       throw Object.assign(new Error(`Excel parse error: ${xlsxErr.message}`), { statusCode: 400 });
     }
@@ -175,6 +203,13 @@ const bulkUpload = withErrorHandling(async (req, res) => {
     if (missingCols.length) {
       throw Object.assign(
         new Error(`CSV missing required columns: ${missingCols.join(', ')}`),
+        { statusCode: 400 },
+      );
+    }
+    const missingAny = REQUIRED_CSV_ONE_OF_COLS.filter(group => !group.some(col => headers.includes(col)));
+    if (missingAny.length) {
+      throw Object.assign(
+        new Error(`CSV missing one of required columns: ${missingAny.map(group => group.join(' or ')).join(', ')}`),
         { statusCode: 400 },
       );
     }
@@ -230,13 +265,27 @@ const getBulkUploadStatus = withErrorHandling(async (req, res) => {
     throw Object.assign(new Error('Bulk upload job not found'), { statusCode: 404 });
   }
 
+  const errorPage = Math.max(1, parseInt(req.query.errorPage || req.query.page || '1', 10) || 1);
+  const errorLimit = Math.min(100, Math.max(1, parseInt(req.query.errorLimit || req.query.limit || '50', 10) || 50));
+  const errorOffset = (errorPage - 1) * errorLimit;
+  const rowErrors = job.rowErrors || [];
+  const pagedErrors = rowErrors.slice(errorOffset, errorOffset + errorLimit);
+
   success(res, 'Bulk upload status retrieved', {
     jobId:       job.jobId,
     status:      job.status,
     totalRows:   job.totalRows,
     createdRows: job.createdRows,
     failedRows:  job.failedRows,
-    errors:      job.rowErrors.slice(0, 50),   // cap errors shown in status response
+    errors:      pagedErrors,
+    errorMeta: {
+      total: rowErrors.length,
+      page: errorPage,
+      limit: errorLimit,
+      pages: Math.ceil(rowErrors.length / errorLimit) || 1,
+      hasNextPage: errorOffset + errorLimit < rowErrors.length,
+      hasPrevPage: errorPage > 1,
+    },
     fatalError:  job.fatalError,
     createdAt:   job.createdAt,
   });

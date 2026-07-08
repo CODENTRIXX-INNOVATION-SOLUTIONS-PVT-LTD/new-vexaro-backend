@@ -2,6 +2,7 @@
 
 const supportRepository = require('./support.repository');
 const { TicketStatus, UserRole } = require('../../constants');
+const { User } = require('../users/user.model');
 
 /**
  * Support Service
@@ -42,20 +43,46 @@ const createTicketService = async (dto, raisedBy) => {
   return ticket;
 };
 
+const assertTicketAccess = async (ticket, caller, { staffOnly = false } = {}) => {
+  const isOwner = ticket.raisedBy?._id
+    ? ticket.raisedBy._id.toString() === caller.userId
+    : ticket.raisedBy?.toString() === caller.userId;
+
+  if (caller.role === UserRole.SUPER_ADMIN) return;
+
+  if (caller.role === UserRole.DISTRIBUTOR) {
+    if (staffOnly) return;
+    if (isOwner) return;
+
+    const raisedById = ticket.raisedBy?._id || ticket.raisedBy;
+    const merchant = await User.findOne({
+      _id: raisedById,
+      role: UserRole.MERCHANT,
+      invitedBy: caller.userId,
+      deletedAt: null,
+    }, '_id').lean();
+
+    if (merchant) return;
+  }
+
+  if (!staffOnly && isOwner) return;
+
+  throw Object.assign(new Error('Access denied'), { statusCode: 403 });
+};
+
 const getTicketByIdService = async (id, caller) => {
   const ticket = await supportRepository.findById(id);
   if (!ticket) throw Object.assign(new Error('Ticket not found'), { statusCode: 404 });
 
-  const isOwner = ticket.raisedBy._id.toString() === caller.userId;
-  const isStaff = [UserRole.SUPER_ADMIN, UserRole.DISTRIBUTOR].includes(caller.role);
-  if (!isOwner && !isStaff) throw Object.assign(new Error('Access denied'), { statusCode: 403 });
+  await assertTicketAccess(ticket, caller);
 
   return ticket;
 };
 
-const updateTicketService = async (id, dto) => {
+const updateTicketService = async (id, dto, caller) => {
   const ticket = await supportRepository.findByIdRaw(id);
   if (!ticket) throw Object.assign(new Error('Ticket not found'), { statusCode: 404 });
+  await assertTicketAccess(ticket, caller);
 
   Object.assign(ticket, dto);
   if (dto.status === TicketStatus.RESOLVED) ticket.resolvedAt = new Date();
@@ -73,7 +100,7 @@ const addReplyService = async (id, dto, caller) => {
 
   const isOwner = ticket.raisedBy.toString() === caller.userId;
   const isStaff = [UserRole.SUPER_ADMIN, UserRole.DISTRIBUTOR].includes(caller.role);
-  if (!isOwner && !isStaff) throw Object.assign(new Error('Access denied'), { statusCode: 403 });
+  await assertTicketAccess(ticket, caller);
 
   // Claim-on-reply: Auto-assign ticket to the responding staff member
   if (!ticket.assignedTo && isStaff) {

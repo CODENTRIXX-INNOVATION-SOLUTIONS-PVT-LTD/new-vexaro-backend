@@ -23,7 +23,7 @@ const { UserRole } = require('../../constants');
 const { validateRequest } = require('../../validation');
 const schemas = require('../../validation/schemas/shipments');
 const { createUploadValidator } = require('../../validation/middleware/upload.middleware');
-const { REQUIRED_CSV_COLS } = require('./shared/shipment.constants');
+const { REQUIRED_CSV_COLS, REQUIRED_CSV_ONE_OF_COLS } = require('./shared/shipment.constants');
 
 const bulkCsvUpload = createUploadValidator({
   allowedTypes: [
@@ -33,7 +33,7 @@ const bulkCsvUpload = createUploadValidator({
   ],
   maxSize: 10 * 1024 * 1024, // 10 MB
   required: true,
-  csv: { requiredHeaders: REQUIRED_CSV_COLS },
+  csv: { requiredHeaders: REQUIRED_CSV_COLS, requiredAnyHeaders: REQUIRED_CSV_ONE_OF_COLS },
 });
 
 const router = Router();

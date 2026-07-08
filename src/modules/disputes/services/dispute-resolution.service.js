@@ -21,12 +21,29 @@ const updateDisputeService = async (id, dto, caller) => {
     throw Object.assign(new Error('Access denied'), { statusCode: 403 });
   }
 
-  if ([DisputeStatus.RESOLVED, DisputeStatus.CLOSED].includes(dispute.status)) {
-    throw Object.assign(new Error(`Dispute is already ${dispute.status} and cannot be modified`), { statusCode: 400 });
+  if (dispute.status === DisputeStatus.CLOSED) {
+    throw Object.assign(new Error('Dispute is already CLOSED and cannot be modified'), { statusCode: 400 });
+  }
+
+  if (caller.role === UserRole.MERCHANT) {
+    if (dto.status && dto.status !== DisputeStatus.CLOSED) {
+      throw Object.assign(new Error('Merchants can only close resolved disputes'), { statusCode: 403 });
+    }
+    if (dto.status === DisputeStatus.CLOSED && dispute.status !== DisputeStatus.RESOLVED) {
+      throw Object.assign(new Error('Only resolved disputes can be closed by the merchant'), { statusCode: 400 });
+    }
+    if (dto.status === DisputeStatus.CLOSED) {
+      dispute.status = DisputeStatus.CLOSED;
+    }
   }
 
   if (caller.role === UserRole.SUPER_ADMIN || caller.role === UserRole.DISTRIBUTOR) {
-    if (dto.status)     dispute.status     = dto.status;
+    if (dto.status) {
+      if (dispute.status === DisputeStatus.RESOLVED && dto.status !== DisputeStatus.CLOSED) {
+        throw Object.assign(new Error('Resolved disputes can only be closed'), { statusCode: 400 });
+      }
+      dispute.status = dto.status;
+    }
     if (dto.assignedTo) dispute.assignedTo = dto.assignedTo;
     if (dto.resolution) {
       dispute.resolution = dto.resolution;

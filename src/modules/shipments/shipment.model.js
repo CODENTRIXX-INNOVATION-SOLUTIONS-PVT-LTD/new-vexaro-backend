@@ -20,6 +20,7 @@ const addressSchema = new mongoose.Schema(
     phone:      { type: String, required: true, trim: true },
     email:      { type: String, default: null, trim: true, lowercase: true },
     addressLine:{ type: String, required: true, trim: true },
+    landmark:   { type: String, default: null, trim: true },
     city:       { type: String, required: true, trim: true },
     state:      { type: String, required: true, trim: true },
     pincode:    { type: String, required: true, trim: true },
@@ -52,6 +53,10 @@ const orderItemSchema = new mongoose.Schema(
     sellingPrice: { type: Number, required: true, min: 0 },
     discount:     { type: Number, default: 0, min: 0 },
     tax:          { type: Number, default: 0, min: 0 },
+    qcEnable:     { type: Boolean, default: false },
+    qcProductName:{ type: String, default: null, trim: true },
+    qcBrand:      { type: String, default: null, trim: true },
+    qcProductImage:{ type: String, default: null, trim: true },
   },
   { _id: false },
 );
@@ -203,6 +208,10 @@ const shipmentSchema = new mongoose.Schema(
     velocityWebhookEventIds: {
       type:    [String],
       default: [],
+    },
+    cancellationResult: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
     },
 
     // ── QC (Quality Check) fields for return shipments ─────────────────────────

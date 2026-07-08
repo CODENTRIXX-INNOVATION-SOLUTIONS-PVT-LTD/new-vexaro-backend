@@ -66,7 +66,6 @@ const createShipmentSchema = z.object({
   const hasSingleItem = Boolean(data.productName || data.sku || data.quantity || data.sellingPrice !== undefined);
   if (hasSingleItem) {
     if (!data.productName) ctx.addIssue({ code: 'custom', path: ['productName'], message: 'Product name is required' });
-    if (!data.sku) ctx.addIssue({ code: 'custom', path: ['sku'], message: 'SKU is required' });
     if (!data.quantity) ctx.addIssue({ code: 'custom', path: ['quantity'], message: 'Quantity is required' });
     if (data.sellingPrice === undefined) ctx.addIssue({ code: 'custom', path: ['sellingPrice'], message: 'Selling price is required' });
   }
@@ -131,6 +130,11 @@ const listShipmentsQuerySchema = z.object({
   page:  z.string().optional().transform((v) => (v ? parseInt(v, 10) : 1)).pipe(z.number().int().min(1)),
   limit: z.string().optional().transform((v) => (v ? parseInt(v, 10) : 20)).pipe(z.number().int().min(1).max(100)),
   status:       z.enum(Object.values(ShipmentStatus)).optional(),
+  isReturn:     z.string().optional().transform((v) => {
+    if (v === undefined || v === '') return undefined;
+    return ['true', '1', 'yes'].includes(String(v).toLowerCase());
+  }).optional(),
+  shipmentType: z.enum(['forward', 'return', 'rto']).optional(),
   search:       z.string().trim().optional(),
   merchantId:   mongoIdSchema.optional(),
   merchant:     mongoIdSchema.optional(),
@@ -238,6 +242,7 @@ const reverseOrderItemSchema = z.object({
   units:             z.number().int().positive('units must be a positive integer'),
   selling_price:     z.number().min(0),
   discount:          z.number().min(0).optional().default(0),
+  tax:               z.number().min(0).optional().default(0),
   qc_enable:         z.boolean().optional().default(false),
   qc_product_name:   z.string().trim().optional(),
   qc_brand:          z.string().trim().optional(),
@@ -277,6 +282,7 @@ const createReverseShipmentSchema = z.object({
   orderItems: z.array(reverseOrderItemSchema).min(1, 'At least one order item is required'),
 
   subTotal: z.number().min(0),
+  paymentMethod: z.enum(['PREPAID', 'prepaid']).optional().default('PREPAID'),
   length:   z.number().positive('length must be > 0'),
   breadth:  z.number().positive('breadth must be > 0'),
   height:   z.number().positive('height must be > 0'),

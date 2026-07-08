@@ -4,11 +4,14 @@ const { Shipment } = require('../shipment.model');
 const { velocityClient } = require('../../../utils/velocity');
 
 const awbSearchService = async (awb, caller) => {
-  const normalizedAwb = awb.trim().toUpperCase();
+  const rawAwb = String(awb || '').trim();
+  const normalizedAwb = rawAwb.toUpperCase();
+  const escapedAwb = rawAwb.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const shipment = await Shipment.findOne({
     $or: [
       { awb: normalizedAwb },
       { carrierAWB: normalizedAwb },
+      { carrierAWB: { $regex: `^${escapedAwb}$`, $options: 'i' } },
     ],
     deletedAt: null,
   })
@@ -25,8 +28,12 @@ const awbSearchService = async (awb, caller) => {
   let velocityTracking = null;
   if (shipment.velocityBooked && shipment.carrierAWB) {
     try {
-      const trackingResult = await velocityClient.getTrackingDetails([shipment.carrierAWB]);
-      velocityTracking = trackingResult[shipment.carrierAWB] || null;
+      const carrierAwb = String(shipment.carrierAWB).trim();
+      const trackingResult = await velocityClient.getTrackingDetails([carrierAwb]);
+      velocityTracking = trackingResult[carrierAwb]
+        || trackingResult[carrierAwb.toUpperCase()]
+        || trackingResult[carrierAwb.toLowerCase()]
+        || null;
     } catch (trackErr) {
       console.error(`[Velocity] Tracking fetch failed for AWB ${shipment.carrierAWB}:`, trackErr.message);
     }
