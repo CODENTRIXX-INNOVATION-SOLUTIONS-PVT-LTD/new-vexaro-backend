@@ -13,7 +13,7 @@ const warehouseSchema = z.object({
   country: z.string().trim().max(80).default('India'),
   contactPerson: z.string().trim().min(1).max(120),
   name: z.string().trim().max(120).optional(),
-  gstNo: z.string().trim().max(20).optional(),
+  gstNo: z.string().trim().max(20).regex(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/, 'GST must be in valid format (e.g. 29ABCDE1234F1Z5)').optional().or(z.literal('')),
 });
 const inviteUserSchema = z.object({
   firstName: z.string().trim().min(1).max(80),

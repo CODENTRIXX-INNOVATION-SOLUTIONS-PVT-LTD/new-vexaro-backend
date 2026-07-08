@@ -55,7 +55,10 @@ const calculateShippingCost = (params) => {
     // Distributor buys to merchant
     distributorCost = parseFloat((carrierCost * (1 + saMarkup / 100)).toFixed(2));
     if (marginConfig) {
-      merchantCost = parseFloat((distributorCost * (1 + (marginConfig.marginPercent || 0) / 100) + (marginConfig.flatMargin || 0)).toFixed(2));
+      // Additive margin: carrierCost + adminMargin + distributorMargin + flatMargin
+      const adminMargin = parseFloat((carrierCost * saMarkup / 100).toFixed(2));
+      const distributorMargin = parseFloat((carrierCost * (marginConfig.marginPercent || 0) / 100).toFixed(2));
+      merchantCost = parseFloat((carrierCost + adminMargin + distributorMargin + (marginConfig.flatMargin || 0)).toFixed(2));
     } else {
       merchantCost = distributorCost;
     }

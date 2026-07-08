@@ -15,6 +15,7 @@ const updateContactSchema = z
       .regex(phoneRegex, 'Phone number must be 10 digits starting with 6, 7, 8, or 9')
       .optional(),
     email: z.string().trim().email('Invalid email format').optional(),
+    gstNo: z.string().trim().max(20).regex(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/, 'GST must be in valid format (e.g. 29ABCDE1234F1Z5)').optional().or(z.literal('')),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: 'At least one contact field must be provided for update',
