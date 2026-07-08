@@ -3,7 +3,9 @@
 const REQUIRED_CSV_COLS = [
   'origin_name', 'origin_phone', 'origin_address', 'origin_city', 'origin_state', 'origin_pincode',
   'dest_name',   'dest_phone',   'dest_address',   'dest_city',   'dest_state',   'dest_pincode',
-  'weight',
+  'weight', 'length', 'breadth', 'height',
+  'product_name', 'sku', 'quantity', 'selling_price', 'discount', 'tax',
+  'declared_value', 'payment_method', 'cod_amount',
 ];
 
 const UPDATABLE_FIELDS = [

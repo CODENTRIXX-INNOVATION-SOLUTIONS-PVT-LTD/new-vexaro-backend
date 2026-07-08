@@ -18,6 +18,7 @@ const {
   createReverseShipmentService,
 } = require('./shipment.service');
 const { BulkJob } = require('./bulk-job.model');
+const { REQUIRED_CSV_COLS } = require('./shared/shipment.constants');
 const { success, created, paginated } = require('../../utils');
 const { wrapController } = require('../../utils/errors');
 const { getPaginationParams, buildPaginationMeta } = require('../../utils/pagination');
@@ -45,7 +46,7 @@ const createShipment = withErrorHandling(async (req, res) => {
 
 // ─── GET /api/shipments/stats ─────────────────────────────────────────────────
 const getShipmentStats = withErrorHandling(async (req, res) => {
-  const stats = await shipmentStatsService(req.user);
+  const stats = await shipmentStatsService(req.user, req.validated.query || {});
   success(res, 'Shipment stats retrieved', stats);
 });
 
@@ -125,11 +126,6 @@ const EXCEL_MIMES = new Set([
   'application/vnd.ms-excel',
 ]);
 
-const REQUIRED_BULK_COLS = [
-  'origin_name', 'origin_phone', 'origin_address', 'origin_city', 'origin_state', 'origin_pincode',
-  'dest_name', 'dest_phone', 'dest_address', 'dest_city', 'dest_state', 'dest_pincode', 'weight',
-];
-
 const bulkUpload = withErrorHandling(async (req, res) => {
   if (!req.file) {
     throw Object.assign(new Error('File is required. Send as multipart/form-data with field name "file".'), { statusCode: 400 });
@@ -144,9 +140,20 @@ const bulkUpload = withErrorHandling(async (req, res) => {
     try {
       const xlsx = require('xlsx');
       const wb   = xlsx.read(req.file.buffer, { type: 'buffer' });
-      const sheet = wb.Sheets[wb.SheetNames[0]];
-      const rows  = xlsx.utils.sheet_to_json(sheet, { defval: '' });
-      totalRows   = rows.length;
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rows  = xlsx.utils.sheet_to_json(sheet, { defval: '' });
+    totalRows   = rows.length;
+    if (!rows.length) {
+      throw Object.assign(new Error('Excel file is empty.'), { statusCode: 400 });
+    }
+    const headers = Object.keys(rows[0]).map(h => h.toLowerCase().trim());
+    const missingCols = REQUIRED_CSV_COLS.filter(col => !headers.includes(col));
+    if (missingCols.length) {
+      throw Object.assign(
+        new Error(`Excel missing required columns: ${missingCols.join(', ')}`),
+        { statusCode: 400 },
+      );
+    }
     } catch (xlsxErr) {
       throw Object.assign(new Error(`Excel parse error: ${xlsxErr.message}`), { statusCode: 400 });
     }
@@ -164,7 +171,7 @@ const bulkUpload = withErrorHandling(async (req, res) => {
     }
 
     const headers    = Object.keys(rows[0]).map(h => h.toLowerCase().trim());
-    const missingCols = REQUIRED_BULK_COLS.filter(col => !headers.includes(col));
+    const missingCols = REQUIRED_CSV_COLS.filter(col => !headers.includes(col));
     if (missingCols.length) {
       throw Object.assign(
         new Error(`CSV missing required columns: ${missingCols.join(', ')}`),
@@ -250,12 +257,12 @@ const getVelocityRates = withErrorHandling(async (req, res) => {
 });
 
 const reattemptVelocityDelivery = withErrorHandling(async (req, res) => {
-  const result = await reattemptVelocityDeliveryService(req.validated.body);
+  const result = await reattemptVelocityDeliveryService(req.validated.body, req.user);
   success(res, 'Velocity reattempt requested successfully', result);
 });
 
 const initiateVelocityRto = withErrorHandling(async (req, res) => {
-  const result = await initiateVelocityRtoService(req.validated.body);
+  const result = await initiateVelocityRtoService(req.validated.body, req.user);
   success(res, 'Velocity RTO requested successfully', result);
 });
 

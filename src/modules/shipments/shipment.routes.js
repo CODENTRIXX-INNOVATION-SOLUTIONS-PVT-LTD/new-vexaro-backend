@@ -22,13 +22,9 @@ const {
 const { UserRole } = require('../../constants');
 const { validateRequest } = require('../../validation');
 const schemas = require('../../validation/schemas/shipments');
-const { emptyObjectSchema } = require('../../validation/schemas/common/base.schemas');
 const { createUploadValidator } = require('../../validation/middleware/upload.middleware');
+const { REQUIRED_CSV_COLS } = require('./shared/shipment.constants');
 
-const REQUIRED_BULK_HEADERS = [
-  'origin_name', 'origin_phone', 'origin_address', 'origin_city', 'origin_state', 'origin_pincode',
-  'dest_name', 'dest_phone', 'dest_address', 'dest_city', 'dest_state', 'dest_pincode', 'weight',
-];
 const bulkCsvUpload = createUploadValidator({
   allowedTypes: [
     'text/csv',
@@ -37,7 +33,7 @@ const bulkCsvUpload = createUploadValidator({
   ],
   maxSize: 10 * 1024 * 1024, // 10 MB
   required: true,
-  csv: { requiredHeaders: REQUIRED_BULK_HEADERS },
+  csv: { requiredHeaders: REQUIRED_CSV_COLS },
 });
 
 const router = Router();
@@ -50,7 +46,7 @@ router.use(authMiddleware);
 // ─────────────────────────────────────────────────────────────────────────────
 
 // GET  /api/shipments/stats         — dashboard counts by status
-router.get('/stats', validateRequest({ query: emptyObjectSchema }), getShipmentStats);
+router.get('/stats', validateRequest({ query: schemas.shipmentStatsQuerySchema }), getShipmentStats);
 
 // GET  /api/shipments/track/:awb    — AWB search / public tracking
 router.get('/track/:awb', validateRequest({ params: schemas.awbParamsSchema }), trackByAWB);
