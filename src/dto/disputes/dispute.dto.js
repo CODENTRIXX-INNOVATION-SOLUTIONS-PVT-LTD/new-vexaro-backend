@@ -4,10 +4,20 @@ const { mongoIdSchema } = require('../../utils/validation');
 
 const mongoId = mongoIdSchema;
 
+const disputeAttachmentSchema = z.object({
+  url: z.string().trim().min(1).max(1000),
+  name: z.string().trim().max(200).optional(),
+});
+
 const createDisputeSchema = z.object({
-  shipmentId:  mongoId,
+  shipmentId:  mongoId.optional(),
+  shipmentAwb: z.string().trim().min(3).max(64).optional(),
   category:    z.enum(Object.values(DisputeCategory), { error: `Category must be one of: ${Object.values(DisputeCategory).join(', ')}` }),
   description: z.string().min(10, 'Description must be at least 10 characters').max(2000).trim(),
+  attachments: z.array(disputeAttachmentSchema).max(10, 'Maximum 10 attachments are allowed').optional(),
+}).refine(d => d.shipmentId || d.shipmentAwb, {
+  message: 'shipmentId or shipmentAwb is required',
+  path: ['shipmentId'],
 });
 
 const updateDisputeSchema = z.object({

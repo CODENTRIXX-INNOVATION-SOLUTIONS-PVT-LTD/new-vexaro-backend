@@ -7,9 +7,19 @@ const shipmentRepository = require('../../shipments/shipment.repository');
 const { applyTransaction } = require('../../finance/finance.service');
 const { createNotification } = require('../../notifications/notification.service');
 
+const toIdString = (value) => {
+  if (!value) return '';
+  if (value._id) return value._id.toString();
+  return value.toString();
+};
+
 const updateDisputeService = async (id, dto, caller) => {
   const dispute = await disputeRepository.findByIdRaw(id);
   if (!dispute) throw Object.assign(new Error('Dispute not found'), { statusCode: 404 });
+
+  if (caller.role === UserRole.MERCHANT && toIdString(dispute.raisedBy) !== caller.userId.toString()) {
+    throw Object.assign(new Error('Access denied'), { statusCode: 403 });
+  }
 
   if ([DisputeStatus.RESOLVED, DisputeStatus.CLOSED].includes(dispute.status)) {
     throw Object.assign(new Error(`Dispute is already ${dispute.status} and cannot be modified`), { statusCode: 400 });

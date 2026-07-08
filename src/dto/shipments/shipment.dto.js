@@ -139,6 +139,20 @@ const listShipmentsQuerySchema = z.object({
   warehouseId:  mongoIdSchema.optional(),
   dateFrom:     z.string().optional(),
   dateTo:       z.string().optional(),
+  carrier:      z.string().trim().optional(),
+});
+
+const shipmentStatsQuerySchema = z.object({
+  status:       z.enum(Object.values(ShipmentStatus)).optional(),
+  search:       z.string().trim().optional(),
+  merchantId:   mongoIdSchema.optional(),
+  merchant:     mongoIdSchema.optional(),
+  distributorId:mongoIdSchema.optional(),
+  distributor:  mongoIdSchema.optional(),
+  warehouseId:  mongoIdSchema.optional(),
+  dateFrom:     z.string().optional(),
+  dateTo:       z.string().optional(),
+  carrier:      z.string().trim().optional(),
 });
 
 // ─── AWB search query ──────────────────────────────────────────────────────────
@@ -307,6 +321,7 @@ module.exports = {
   updateShipmentSchema,
   updateStatusSchema,
   listShipmentsQuerySchema,
+  shipmentStatsQuerySchema,
   awbSearchSchema,
   serviceabilitySchema,
   velocityRatesSchema,

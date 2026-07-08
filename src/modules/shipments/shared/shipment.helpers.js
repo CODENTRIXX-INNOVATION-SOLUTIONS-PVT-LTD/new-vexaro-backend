@@ -38,6 +38,11 @@ const buildShipmentFilter = (caller, query = {}) => {
   // Common optional filters available to all roles
   if (query.status) filter.status = query.status;
 
+  if (query.carrier) {
+    const escapedCarrier = query.carrier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    filter.carrier = { $regex: escapedCarrier, $options: 'i' };
+  }
+
   if (query.search) {
     // Escape special regex characters to prevent ReDoS attacks
     const escaped = query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

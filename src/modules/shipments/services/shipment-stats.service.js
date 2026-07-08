@@ -32,10 +32,8 @@ const bucketStatus = (status) => {
   return 'other';
 };
 
-const shipmentStatsService = async (caller) => {
-  const cacheKey = KEYS.shipmentStats(caller.userId);
-  return remember(cacheKey, TTL.SHIPMENT_STATS, async () => {
-    const baseFilter = buildShipmentFilter(caller);
+const calculateShipmentStats = async (caller, query = {}) => {
+  const baseFilter = buildShipmentFilter(caller, query);
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
@@ -124,7 +122,20 @@ const shipmentStatsService = async (caller) => {
       statusTrend,
       topDestinations,
     };
-  });
+};
+
+const hasReportFilters = (query = {}) => Object.keys(query).some((key) => {
+  const value = query[key];
+  return value !== undefined && value !== null && value !== '';
+});
+
+const shipmentStatsService = async (caller, query = {}) => {
+  if (hasReportFilters(query)) {
+    return calculateShipmentStats(caller, query);
+  }
+
+  const cacheKey = KEYS.shipmentStats(caller.userId);
+  return remember(cacheKey, TTL.SHIPMENT_STATS, async () => calculateShipmentStats(caller));
 };
 
 module.exports = {

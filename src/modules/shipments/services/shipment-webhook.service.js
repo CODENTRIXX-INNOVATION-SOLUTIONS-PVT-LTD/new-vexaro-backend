@@ -210,9 +210,6 @@ const updateShipmentStatusFromVelocityWebhook = async (payload) => {
   if (nextStatus === ShipmentStatus.DELIVERED) {
     shipment.deliveredAt = toDateOrNull(payload.deliveredAt) || new Date();
   }
-  // Soft-delete only for CANCELLED coming from a webhook — not for RTO
-  // (RTO shipments still need to be visible in the dashboard)
-
   await shipment.save();
 
   logger.info('velocity_webhook_status_updated', {
