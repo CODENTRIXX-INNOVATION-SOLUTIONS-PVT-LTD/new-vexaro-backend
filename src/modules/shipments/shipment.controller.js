@@ -245,7 +245,7 @@ const checkServiceability = withErrorHandling(async (req, res) => {
 // ─── POST /api/shipments/velocity-rates ───────────────────────────────────────
 const getVelocityRates = withErrorHandling(async (req, res) => {
   const dto = req.validated.body;
-  const result = await getVelocityRatesService(dto);
+  const result = await getVelocityRatesService(dto, req.user);
   success(res, 'Velocity rates retrieved successfully', result);
 });
 
