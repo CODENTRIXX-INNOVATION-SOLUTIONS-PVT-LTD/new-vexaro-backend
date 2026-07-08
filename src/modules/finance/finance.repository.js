@@ -187,6 +187,14 @@ const findRechargeRequestsPaginated = async (filter, { skip, limit, sort = { cre
 };
 
 /** Update recharge request */
+const hasCompletedRecharge = (walletId, session = null) => {
+  const q = Transaction.exists({
+    walletId,
+    type: { $in: ['TOPUP', 'TRANSFER_CREDIT'] }
+  });
+  return session ? q.session(session) : q;
+};
+
 const updateRechargeRequest = (id, update, session) => {
   const { RechargeRequest } = require('./recharge-request.model');
   const opts = { returnDocument: 'after' };
@@ -202,6 +210,7 @@ module.exports = {
   saveWallet,
   findWalletsPaginated,
   aggregateWallets,
+  hasCompletedRecharge,
   // Transaction
   createTransaction,
   findTransaction,

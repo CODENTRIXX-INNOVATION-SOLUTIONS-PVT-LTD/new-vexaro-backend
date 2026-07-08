@@ -1,6 +1,6 @@
 'use strict';
 
-const { UserRole, TransactionType } = require('../../../constants');
+const { UserRole, TransactionType, SystemConfig } = require('../../../constants');
 const { getPaginationParams } = require('../../../utils/pagination');
 const { runInTransaction } = require('../../../utils/transaction');
 const financeRepository = require('../finance.repository');
@@ -65,6 +65,19 @@ const rechargeDistributorWalletService = async (dto, caller) => {
   }
 
   return runInTransaction(async (session) => {
+    const { createWalletService } = require('./wallet.service');
+    let walletDoc = await financeRepository.findWalletByUserId(distributorId, session);
+    if (!walletDoc) {
+      walletDoc = await createWalletService(distributorId, session);
+    }
+    const hasRecharge = await financeRepository.hasCompletedRecharge(walletDoc._id, session);
+    if (!hasRecharge && amount < SystemConfig.WALLET_MIN_FIRST_TOPUP) {
+      throw Object.assign(
+        new Error(`First wallet top-up must be at least ₹${SystemConfig.WALLET_MIN_FIRST_TOPUP.toLocaleString('en-IN')} (includes ₹${SystemConfig.WALLET_RESERVE_AMOUNT.toLocaleString('en-IN')} mandatory security reserve)`),
+        { statusCode: 400 }
+      );
+    }
+
     const baseReference = `ADMIN-TRANSFER-${Date.now()}`;
 
     // Debit admin wallet — unique reference suffix prevents idempotency clash with credit
@@ -217,8 +230,21 @@ const approveRechargeRequestService = async (requestId, caller) => {
   }
 
   return runInTransaction(async (session) => {
-    const baseReference = `RECHARGE-REQ-${requestId}`;
+    const { createWalletService } = require('./wallet.service');
     const distributorId = request.userId._id.toString();
+    let walletDoc = await financeRepository.findWalletByUserId(distributorId, session);
+    if (!walletDoc) {
+      walletDoc = await createWalletService(distributorId, session);
+    }
+    const hasRecharge = await financeRepository.hasCompletedRecharge(walletDoc._id, session);
+    if (!hasRecharge && request.amount < SystemConfig.WALLET_MIN_FIRST_TOPUP) {
+      throw Object.assign(
+        new Error(`First wallet top-up must be at least ₹${SystemConfig.WALLET_MIN_FIRST_TOPUP.toLocaleString('en-IN')} (includes ₹${SystemConfig.WALLET_RESERVE_AMOUNT.toLocaleString('en-IN')} mandatory security reserve)`),
+        { statusCode: 400 }
+      );
+    }
+
+    const baseReference = `RECHARGE-REQ-${requestId}`;
 
     // Debit admin wallet first — unique reference suffix prevents idempotency clash with credit
     const { transaction: adminTx } = await applyTransaction(
@@ -307,9 +333,6 @@ const rejectRechargeRequestService = async (requestId, dto, caller) => {
   return { success: true };
 };
 
-/**
- * Create a recharge request (Distributor submits to SA for manual top-up)
- */
 const createRechargeRequestService = async (dto, caller) => {
   if (caller.role !== UserRole.DISTRIBUTOR) {
     throw Object.assign(new Error('Only distributors can submit recharge requests'), { statusCode: 403 });
@@ -317,6 +340,19 @@ const createRechargeRequestService = async (dto, caller) => {
 
   const { amount, paymentMethod, referenceId } = dto;
   const { RechargeRequest } = require('../recharge-request.model');
+
+  let wallet = await financeRepository.findWalletByUserId(caller.userId);
+  if (!wallet) {
+    const { createWalletService } = require('./wallet.service');
+    wallet = await createWalletService(caller.userId);
+  }
+  const hasRecharge = await financeRepository.hasCompletedRecharge(wallet._id);
+  if (!hasRecharge && amount < SystemConfig.WALLET_MIN_FIRST_TOPUP) {
+    throw Object.assign(
+      new Error(`First wallet top-up must be at least ₹${SystemConfig.WALLET_MIN_FIRST_TOPUP.toLocaleString('en-IN')} (includes ₹${SystemConfig.WALLET_RESERVE_AMOUNT.toLocaleString('en-IN')} mandatory security reserve)`),
+      { statusCode: 400 }
+    );
+  }
 
   const request = await RechargeRequest.create({
     userId: caller.userId,
