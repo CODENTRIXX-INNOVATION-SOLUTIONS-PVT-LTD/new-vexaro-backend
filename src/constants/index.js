@@ -104,6 +104,7 @@ const NotificationType = Object.freeze({
   DISPUTE: "DISPUTE",
   SYSTEM: "SYSTEM",
   INVITE: "INVITE",
+  QUERY: "QUERY",
 });
 
 const SystemConfig = Object.freeze({

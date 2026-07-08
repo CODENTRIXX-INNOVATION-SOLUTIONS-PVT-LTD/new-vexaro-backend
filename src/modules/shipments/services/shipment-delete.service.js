@@ -74,6 +74,7 @@ const deleteShipmentService = async (shipmentId, caller) => {
   // 3. Notifications & Audits
   try {
     await createNotification(shipment.merchantId, {
+      senderId: caller.userId,
       title: 'Shipment Cancelled',
       message: `Your shipment ${shipment.awb} has been cancelled and ₹${shipment.merchantCost.toFixed(2)} refunded.`,
       type: 'SHIPMENT',

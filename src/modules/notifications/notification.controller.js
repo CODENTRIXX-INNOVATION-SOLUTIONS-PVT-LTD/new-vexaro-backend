@@ -1,7 +1,7 @@
 'use strict';
 
 const notificationService = require('./notification.service');
-const { success } = require('../../utils/response');
+const { success, created } = require('../../utils/response');
 
 /**
  * Notification Controller
@@ -29,9 +29,15 @@ const deleteNotification = async (req, res) => {
   success(res, result.message);
 };
 
+const raiseQuery = async (req, res) => {
+  const notif = await notificationService.raiseQueryService(req.user, req.validated.body);
+  created(res, 'Query alert raised successfully', notif);
+};
+
 module.exports = {
   getNotifications,
   markAllAsRead,
   markAsRead,
   deleteNotification,
+  raiseQuery,
 };

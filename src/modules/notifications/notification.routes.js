@@ -25,4 +25,7 @@ router.patch('/:id/read', validateRequest({ params: schemas.notificationIdParams
 // DELETE /api/notifications/:id — delete notification
 router.delete('/:id', validateRequest({ params: schemas.notificationIdParamsSchema }), wrap(notificationController.deleteNotification));
 
+// POST /api/notifications/queries — raise query alert
+router.post('/queries', validateRequest({ body: schemas.raiseQuerySchema }), wrap(notificationController.raiseQuery));
+
 module.exports = router;

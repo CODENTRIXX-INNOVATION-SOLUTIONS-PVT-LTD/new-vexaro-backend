@@ -310,6 +310,7 @@ const inviteUserService = async (dto, caller) => {
 
   try {
     await createNotification(userObj._id, {
+      senderId: caller.userId,
       title: "Vexaro Account Invite",
       message: `You have been invited as a ${dto.role}.`,
       type: "INVITE",

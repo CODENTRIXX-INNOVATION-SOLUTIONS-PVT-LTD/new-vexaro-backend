@@ -129,6 +129,7 @@ const createReverseShipmentService = async (dto, caller) => {
 
   try {
     await createNotification(merchantId, {
+      senderId: caller.userId,
       title: 'Return Shipment Created',
       message: `Return pickup ${awb} booked via ${velocityResult.carrierName}. Carrier AWB: ${velocityResult.awb}.`,
       type: 'SHIPMENT',

@@ -104,6 +104,7 @@ const rechargeDistributorWalletService = async (dto, caller) => {
 
     try {
       await createNotification(distributorId, {
+        senderId: caller.userId,
         title: 'Wallet Funded',
         message: `₹${amount.toLocaleString('en-IN')} has been added to your wallet by the admin.`,
         type: 'PAYMENT',

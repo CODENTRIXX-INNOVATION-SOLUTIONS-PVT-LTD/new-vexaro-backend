@@ -98,6 +98,7 @@ const submitRefundRequestService = async (dto, caller) => {
   (async () => {
     try {
       await createNotification(caller.userId, {
+        senderId: caller.userId,
         title:   'Refund Request Submitted',
         message: `Your refund request for AWB ${shipment.awb} (₹${amount.toFixed(2)}) has been submitted.`,
         type:    'PAYMENT',
