@@ -115,6 +115,8 @@ const SystemConfig = Object.freeze({
   WEIGHT_DISPUTE_EXPIRY_DAYS: 3,
   VELOCITY_TOKEN_TTL: 82800, // 23 hours in seconds
   PAGINATION_LIMIT_DEFAULT: 20,
+  WALLET_RESERVE_AMOUNT: 2000,
+  WALLET_MIN_FIRST_TOPUP: 2200,
 });
 
 module.exports = {

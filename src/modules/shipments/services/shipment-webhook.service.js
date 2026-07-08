@@ -1,8 +1,12 @@
 'use strict';
 
 const { Shipment } = require('../shipment.model');
-const { ShipmentStatus, CODStatus } = require('../../../constants');
+const { ShipmentStatus, CODStatus, TransactionType } = require('../../../constants');
 const { createNotification } = require('../../notifications/notification.service');
+const { runInTransaction } = require('../../../utils/transaction');
+const { applyTransaction } = require('../../finance/services/payment.service');
+const shipmentRepository = require('../shipment.repository');
+const financeRepository = require('../../finance/finance.repository');
 const logger = require('../../../utils/logger');
 
 // ─── Velocity event string → internal ShipmentStatus ─────────────────────────
@@ -237,8 +241,8 @@ const updateShipmentStatusFromVelocityWebhook = async (payload) => {
 
 /**
  * Creates or idempotently updates the COD escrow record when a COD shipment
- * is delivered. Safe to call multiple times for the same shipment (Velocity
- * may retry webhook delivery).
+ * is delivered. Automatically distributes wallets on first collection.
+ * Safe to call multiple times for the same shipment (Velocity may retry webhook delivery).
  */
 const _handleCodOnDelivery = async (shipment) => {
   const { COD } = require('../../finance/finance.model');
@@ -257,35 +261,103 @@ const _handleCodOnDelivery = async (shipment) => {
     return existing;
   }
 
-  const codRecord = await COD.create({
-    shipmentId:    shipment._id,
-    merchantId:    shipment.merchantId,
-    distributorId: shipment.distributorId || null,
-    codAmount:     shipment.codAmount,
-    status:        CODStatus.PENDING,
-    collectedAt:   new Date(),
-  });
+  // Calculate revenue distribution
+  const shippingCost = shipment.merchantCost || 0;
+  const vexaroMargin = shipment.vexaroProfit || 0;
+  const distributorMargin = shipment.distributorProfit || 0;
+  const netToMerchant = shipment.codAmount - shippingCost;
 
-  logger.info('webhook_cod_record_created', {
-    awb:        shipment.awb,
-    codAmount:  shipment.codAmount,
-    merchantId: shipment.merchantId,
-  });
-
-  try {
-    await createNotification(shipment.merchantId.toString(), {
-      title:   'COD Collected',
-      message: `COD of ₹${shipment.codAmount.toFixed(2)} for ${shipment.awb} has been collected and is pending remittance to your wallet.`,
-      type:    'PAYMENT',
+  if (netToMerchant < 0) {
+    logger.error('webhook_cod_amount_less_than_shipping', {
+      awb: shipment.awb,
+      codAmount: shipment.codAmount,
+      shippingCost,
     });
-  } catch (notifErr) {
-    logger.warn('webhook_cod_notification_failed', {
-      awb:   shipment.awb,
-      error: notifErr.message,
-    });
+    throw Object.assign(new Error('COD amount is less than shipping cost'), { statusCode: 400 });
   }
 
-  return codRecord;
+  return runInTransaction(async (session) => {
+    const codRecord = await COD.create([{
+      shipmentId:    shipment._id,
+      merchantId:    shipment.merchantId,
+      distributorId: shipment.distributorId || null,
+      codAmount:     shipment.codAmount,
+      status:        CODStatus.REMITTED,
+      collectedAt:   new Date(),
+      remittedAt:    new Date(),
+      remittedBy:    null,
+      note:          'Auto-remitted on delivery',
+    }], { session });
+
+    const cod = codRecord[0];
+
+    // Credit merchant with net amount (COD - shipping cost)
+    await applyTransaction(session, shipment.merchantId.toString(), TransactionType.COD_CREDIT, netToMerchant, {
+      shipmentId:  shipment._id,
+      performedBy: null,
+      reference:   `COD-${cod._id}`,
+      note:        `COD amount credited (₹${shipment.codAmount.toFixed(2)} - ₹${shippingCost.toFixed(2)} shipping)`,
+    });
+
+    // Credit Vexaro margin (admin margin) to super-admin wallet
+    if (vexaroMargin > 0) {
+      const { User } = require('../../users/user.model');
+      const superAdmin = await User.findOne({ role: 'SUPER_ADMIN', isActive: true, deletedAt: null });
+      if (superAdmin) {
+        await applyTransaction(session, superAdmin._id.toString(), TransactionType.COD_CREDIT, vexaroMargin, {
+          shipmentId:  shipment._id,
+          performedBy: null,
+          reference:   `COD-MARGIN-${cod._id}`,
+          note:        `Admin margin from COD shipment ${shipment.awb}`,
+        });
+      }
+    }
+
+    // Credit Distributor with distributor margin
+    if (distributorMargin > 0 && shipment.distributorId) {
+      await applyTransaction(session, shipment.distributorId.toString(), TransactionType.COD_CREDIT, distributorMargin, {
+        shipmentId:  shipment._id,
+        performedBy: null,
+        reference:   `COD-MARGIN-${cod._id}`,
+        note:        `Distributor margin from COD shipment ${shipment.awb}`,
+      });
+    }
+
+    // Update shipment status
+    await shipmentRepository.findByIdAndUpdate(
+      shipment._id,
+      {
+        codStatus: 'REMITTED',
+        payoutStatus: 'PAID',
+        payoutDate: new Date(),
+      },
+      { session }
+    );
+
+    logger.info('webhook_cod_auto_remitted', {
+      awb: shipment.awb,
+      codAmount: shipment.codAmount,
+      shippingCost,
+      netToMerchant,
+      vexaroMargin,
+      distributorMargin,
+    });
+
+    try {
+      await createNotification(shipment.merchantId.toString(), {
+        title: 'COD Released',
+        message: `COD amount of ₹${shipment.codAmount.toFixed(2)} has been automatically released to your wallet. Shipping cost ₹${shippingCost.toFixed(2)} deducted.`,
+        type: 'PAYMENT',
+      });
+    } catch (notifErr) {
+      logger.warn('webhook_cod_notification_failed', {
+        awb: shipment.awb,
+        error: notifErr.message,
+      });
+    }
+
+    return cod;
+  });
 };
 
 module.exports = { updateShipmentStatusFromVelocityWebhook };

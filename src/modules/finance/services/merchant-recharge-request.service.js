@@ -1,6 +1,6 @@
 'use strict';
 
-const { UserRole, TransactionType } = require('../../../constants');
+const { UserRole, TransactionType, SystemConfig } = require('../../../constants');
 const { getPaginationParams } = require('../../../utils/pagination');
 const { runInTransaction } = require('../../../utils/transaction');
 const userRepository = require('../../users/user.repository');
@@ -32,6 +32,18 @@ const createMerchantRechargeRequestService = async (dto, caller) => {
   const distributor = await userRepository.findOne({ _id: merchant.invitedBy, deletedAt: null });
   if (!distributor || distributor.role !== UserRole.DISTRIBUTOR) {
     throw Object.assign(new Error('Your distributor account was not found'), { statusCode: 404 });
+  }
+
+  let wallet = await financeRepository.findWalletByUserId(caller.userId);
+  if (!wallet) {
+    wallet = await createWalletService(caller.userId);
+  }
+  const hasRecharge = await financeRepository.hasCompletedRecharge(wallet._id);
+  if (!hasRecharge && amount < SystemConfig.WALLET_MIN_FIRST_TOPUP) {
+    throw Object.assign(
+      new Error(`First wallet top-up must be at least ₹${SystemConfig.WALLET_MIN_FIRST_TOPUP.toLocaleString('en-IN')} (includes ₹${SystemConfig.WALLET_RESERVE_AMOUNT.toLocaleString('en-IN')} mandatory security reserve)`),
+      { statusCode: 400 }
+    );
   }
 
   const request = await MerchantRechargeRequest.create({
@@ -134,6 +146,14 @@ const approveMerchantRechargeRequestService = async (requestId, caller) => {
     // Ensure merchant wallet exists before transaction
     const merchantWallet = await createWalletService(request.merchantId._id.toString(), session);
     logger.info('merchant_wallet_created_or_found', { merchantId: request.merchantId._id.toString(), walletId: merchantWallet._id });
+
+    const hasRecharge = await financeRepository.hasCompletedRecharge(merchantWallet._id, session);
+    if (!hasRecharge && request.amount < SystemConfig.WALLET_MIN_FIRST_TOPUP) {
+      throw Object.assign(
+        new Error(`First wallet top-up must be at least ₹${SystemConfig.WALLET_MIN_FIRST_TOPUP.toLocaleString('en-IN')} (includes ₹${SystemConfig.WALLET_RESERVE_AMOUNT.toLocaleString('en-IN')} mandatory security reserve)`),
+        { statusCode: 400 }
+      );
+    }
 
     // Debit distributor wallet — unique reference suffix prevents idempotency clash with credit
     const debitResult = await applyTransaction(

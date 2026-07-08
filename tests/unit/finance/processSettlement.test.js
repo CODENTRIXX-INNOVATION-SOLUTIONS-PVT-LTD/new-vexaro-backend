@@ -52,9 +52,15 @@ jest.mock('../../../src/modules/finance/finance.repository', () => ({
 jest.mock('../../../src/modules/users/user.model',         () => ({ User: {} }));
 jest.mock('../../../src/modules/shipments/shipment.model', () => ({ Shipment: {} }));
 jest.mock('../../../src/utils/wallet', () => ({
-  debitWallet:             jest.fn(),
-  creditWallet:            jest.fn(),
-  createWalletTransaction: jest.fn(),
+  debitWallet:             jest.fn().mockImplementation(async (session, wallet, amount) => {
+    wallet.balance -= amount;
+    return { wallet, balanceBefore: wallet.balance + amount, balanceAfter: wallet.balance };
+  }),
+  creditWallet:            jest.fn().mockImplementation(async (session, wallet, amount) => {
+    wallet.balance += amount;
+    return { wallet, balanceBefore: wallet.balance - amount, balanceAfter: wallet.balance };
+  }),
+  createWalletTransaction: jest.fn().mockResolvedValue({ _id: 'tx-new' }),
 }));
 jest.mock('../../../src/utils/logger', () => ({
   info:  jest.fn(),

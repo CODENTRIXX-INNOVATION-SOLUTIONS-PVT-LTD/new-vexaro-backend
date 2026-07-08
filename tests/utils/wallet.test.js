@@ -104,7 +104,7 @@ describe('debitWallet', () => {
     const result = await debitWallet(session, wallet, amount);
 
     expect(findOneAndUpdate).toHaveBeenCalledTimes(1);
-    expect(result.balance).toBe(expectedBalance);
+    expect(result.wallet.balance).toBe(expectedBalance);
     expect(wallet.balance).toBe(expectedBalance);
   });
 
@@ -189,7 +189,7 @@ describe('creditWallet', () => {
     const result = await creditWallet(session, wallet, amount);
 
     expect(findOneAndUpdate).toHaveBeenCalledTimes(1);
-    expect(result.balance).toBe(expectedBalance);
+    expect(result.wallet.balance).toBe(expectedBalance);
     expect(wallet.balance).toBe(expectedBalance);
   });
 
@@ -300,7 +300,7 @@ describe('PBT: creditWallet balance invariant', () => {
           findOneAndUpdate.mockResolvedValue({ _id: wallet._id, balance: expectedBalance, isActive: true });
 
           const result = await creditWallet({}, wallet, amount);
-          return result.balance === expectedBalance && result.balance === initialBalance + amount;
+          return result.wallet.balance === expectedBalance && result.wallet.balance === initialBalance + amount;
         }
       ),
       { numRuns: 200 }
@@ -329,7 +329,7 @@ describe('PBT: debitWallet balance invariant', () => {
           findOneAndUpdate.mockResolvedValue({ _id: wallet._id, balance: expectedBalance, isActive: true });
 
           const result = await debitWallet({}, wallet, amount);
-          return result.balance === expectedBalance && result.balance === initialBalance - amount;
+          return result.wallet.balance === expectedBalance && result.wallet.balance === initialBalance - amount;
         }
       ),
       { numRuns: 200 }

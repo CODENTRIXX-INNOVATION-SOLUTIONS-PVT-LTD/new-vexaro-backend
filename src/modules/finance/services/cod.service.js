@@ -37,13 +37,52 @@ const remitCODService = async (codId, dto, caller) => {
     throw Object.assign(new Error('Access denied'), { statusCode: 403 });
   }
 
+  // Fetch shipment to get shipping cost breakdown
+  const shipment = await shipmentRepository.findById(cod.shipmentId);
+  if (!shipment) throw Object.assign(new Error('Associated shipment not found'), { statusCode: 404 });
+
+  // Calculate revenue distribution
+  const shippingCost = shipment.merchantCost || 0;
+  const vexaroMargin = shipment.vexaroProfit || 0;
+  const distributorMargin = shipment.distributorProfit || 0;
+  const netToMerchant = cod.codAmount - shippingCost;
+
+  if (netToMerchant < 0) {
+    throw Object.assign(new Error('COD amount is less than shipping cost'), { statusCode: 400 });
+  }
+
   return runInTransaction(async (session) => {
-    await applyTransaction(session, cod.merchantId.toString(), TransactionType.COD_CREDIT, cod.codAmount, {
+    // Credit merchant with net amount (COD - shipping cost)
+    await applyTransaction(session, cod.merchantId.toString(), TransactionType.COD_CREDIT, netToMerchant, {
       shipmentId:  cod.shipmentId,
       performedBy: caller.userId,
       reference:   `COD-${cod._id}`,
-      note:        dto.note || 'COD amount credited',
+      note:        dto.note || `COD amount credited (₹${cod.codAmount.toFixed(2)} - ₹${shippingCost.toFixed(2)} shipping)`,
     });
+
+    // Credit Vexaro margin (admin margin) to super-admin wallet
+    if (vexaroMargin > 0) {
+      const { User } = require('../../users/user.model');
+      const superAdmin = await User.findOne({ role: 'SUPER_ADMIN', isActive: true, deletedAt: null });
+      if (superAdmin) {
+        await applyTransaction(session, superAdmin._id.toString(), TransactionType.COD_CREDIT, vexaroMargin, {
+          shipmentId:  cod.shipmentId,
+          performedBy: caller.userId,
+          reference:   `COD-MARGIN-${cod._id}`,
+          note:        `Admin margin from COD shipment ${shipment.awb}`,
+        });
+      }
+    }
+
+    // Credit Distributor with distributor margin
+    if (distributorMargin > 0 && cod.distributorId) {
+      await applyTransaction(session, cod.distributorId.toString(), TransactionType.COD_CREDIT, distributorMargin, {
+        shipmentId:  cod.shipmentId,
+        performedBy: caller.userId,
+        reference:   `COD-MARGIN-${cod._id}`,
+        note:        `Distributor margin from COD shipment ${shipment.awb}`,
+      });
+    }
 
     cod.status     = CODStatus.REMITTED;
     cod.remittedAt = new Date();
@@ -64,7 +103,7 @@ const remitCODService = async (codId, dto, caller) => {
     try {
       await createNotification(cod.merchantId.toString(), {
         title: 'COD Released',
-        message: `COD amount of ₹${cod.codAmount.toFixed(2)} has been released to your wallet.`,
+        message: `COD amount of ₹${cod.codAmount.toFixed(2)} has been released to your wallet. Shipping cost ₹${shippingCost.toFixed(2)} deducted.`,
         type: 'PAYMENT',
       });
     } catch (notifErr) {

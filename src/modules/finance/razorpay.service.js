@@ -8,7 +8,7 @@ const { Payment } = require('./payment.model');
 const { Wallet, Transaction } = require('./finance.model');
 const { UserRole, PaymentStatus, TransactionType } = require('../../constants');
 const { runInTransaction } = require('../../utils/transaction');
-const { applyTransaction } = require('./services/payment.service');
+const { applyTransaction } = require('./finance.service');
 const { createNotification } = require('../notifications/notification.service');
 const { getPaginationParams } = require('../../utils/pagination');
 const logger = require('../../utils/logger');
@@ -290,6 +290,19 @@ const createRazorpayOrderService = async (dto, caller) => {
     }
   } else if (!activeWallet.isActive) {
     throw Object.assign(new Error('Wallet is inactive'), { statusCode: 400 });
+  }
+
+  const financeRepository = require('./finance.repository');
+  const { SystemConfig } = require('../../constants');
+
+  if (caller.role === UserRole.DISTRIBUTOR || caller.role === UserRole.MERCHANT) {
+    const hasRecharge = await financeRepository.hasCompletedRecharge(activeWallet._id);
+    if (!hasRecharge && amountRupees < SystemConfig.WALLET_MIN_FIRST_TOPUP) {
+      throw Object.assign(
+        new Error(`First wallet top-up must be at least ₹${SystemConfig.WALLET_MIN_FIRST_TOPUP.toLocaleString('en-IN')} (includes ₹${SystemConfig.WALLET_RESERVE_AMOUNT.toLocaleString('en-IN')} mandatory security reserve)`),
+        { statusCode: 400 }
+      );
+    }
   }
 
   const receipt = `vx_${Date.now()}_${String(caller.userId).slice(-8)}`;
