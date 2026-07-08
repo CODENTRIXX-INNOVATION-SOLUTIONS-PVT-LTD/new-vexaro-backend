@@ -14,7 +14,7 @@ const { Shipment }      = require('../shipments/shipment.model');
 /** Find one dispute by _id with full population. */
 const findById = (id) =>
   Dispute.findById(id)
-    .populate('shipmentId', 'awb status origin destination')
+    .populate('shipmentId', 'awb status origin destination carrier merchantId distributorId')
     .populate('raisedBy',   'firstName lastName email role')
     .populate('assignedTo', 'firstName lastName email')
     .populate('resolvedBy', 'firstName lastName email')

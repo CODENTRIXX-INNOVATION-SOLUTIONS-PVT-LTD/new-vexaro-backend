@@ -69,6 +69,11 @@ function validateCsv(file, options = {}) {
   const headers = rows[0] ? Object.keys(rows[0]).map((header) => header.toLowerCase()) : [];
   const missing = requiredHeaders.filter((header) => !headers.includes(header.toLowerCase()));
   if (missing.length) throw uploadError(`CSV is missing required columns: ${missing.join(', ')}`, 'CSV_HEADERS_MISSING');
+  const requiredAnyHeaders = options.requiredAnyHeaders || [];
+  const missingAny = requiredAnyHeaders.filter((group) => !group.some((header) => headers.includes(header.toLowerCase())));
+  if (missingAny.length) {
+    throw uploadError(`CSV is missing one of required columns: ${missingAny.map((group) => group.join(' or ')).join(', ')}`, 'CSV_HEADERS_MISSING');
+  }
 }
 
 /**
@@ -99,6 +104,11 @@ function validateXlsx(file, options = {}) {
     const headers = rows[0].map((h) => String(h).toLowerCase().trim());
     const missing = requiredHeaders.filter((h) => !headers.includes(h.toLowerCase()));
     if (missing.length) throw uploadError(`Excel is missing required columns: ${missing.join(', ')}`, 'XLSX_HEADERS_MISSING');
+    const requiredAnyHeaders = options.requiredAnyHeaders || [];
+    const missingAny = requiredAnyHeaders.filter((group) => !group.some((h) => headers.includes(h.toLowerCase())));
+    if (missingAny.length) {
+      throw uploadError(`Excel is missing one of required columns: ${missingAny.map((group) => group.join(' or ')).join(', ')}`, 'XLSX_HEADERS_MISSING');
+    }
   }
 }
 

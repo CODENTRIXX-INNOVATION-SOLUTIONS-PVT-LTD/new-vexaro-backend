@@ -119,7 +119,7 @@ const createAddressChangeRequestService = async (warehouseId, dto, merchantId) =
  * List address change requests with role-based filtering and pagination.
  */
 const listChangeRequestsService = async (query, userId, role) => {
-  const { page, limit, skip } = getPaginationParams(query, 20);
+  const { page, limit, skip } = getPaginationParams({ ...query, limit: query.limit || query.pageSize }, 20);
   const filter = {};
 
   if (query.status) {

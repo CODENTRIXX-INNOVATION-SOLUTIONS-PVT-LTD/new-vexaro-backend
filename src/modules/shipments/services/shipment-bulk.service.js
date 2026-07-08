@@ -3,7 +3,7 @@
 const { parse } = require('csv-parse/sync');
 const { BulkJob } = require('../bulk-job.model');
 const { UserRole } = require('../../../constants');
-const { REQUIRED_CSV_COLS } = require('../shared/shipment.constants');
+const { REQUIRED_CSV_COLS, REQUIRED_CSV_ONE_OF_COLS } = require('../shared/shipment.constants');
 const userRepository = require('../../users/user.repository');
 const { createShipmentService } = require('./shipment-create.service');
 const logger = require('../../../utils/logger');
@@ -92,6 +92,18 @@ const validateRequiredHeaders = (rows) => {
     err.statusCode = 400;
     throw err;
   }
+  const missingAny = REQUIRED_CSV_ONE_OF_COLS.filter((group) => !group.some((col) => headers.includes(col)));
+  if (missingAny.length) {
+    const err = new Error(`File missing one of required columns: ${missingAny.map((group) => group.join(' or ')).join(', ')}`);
+    err.statusCode = 400;
+    throw err;
+  }
+};
+
+const requireText = (row, field, rowNum) => {
+  const value = String(row[field] || '').trim();
+  if (!value) throw new Error(`Row ${rowNum}: ${field} is required.`);
+  return value;
 };
 
 const parsePositiveNumber = (row, field, rowNum) => {
@@ -157,12 +169,13 @@ const resolveMerchantAndDistributor = async (row, caller, baseMerchantId, rowNum
 };
 
 const buildShipmentDtoFromRow = async (row, caller, baseMerchantId, rowNum) => {
+  const unitsField = row.units !== undefined && String(row.units).trim() !== '' ? 'units' : 'quantity';
   const weight = parsePositiveNumber(row, 'weight', rowNum);
   const length = parsePositiveNumber(row, 'length', rowNum);
   const breadth = parsePositiveNumber(row, 'breadth', rowNum);
   const height = parsePositiveNumber(row, 'height', rowNum);
   const declaredValue = parsePositiveNumber(row, 'declared_value', rowNum);
-  const quantity = parsePositiveInteger(row, 'quantity', rowNum);
+  const quantity = parsePositiveInteger(row, unitsField, rowNum);
   const sellingPrice = parsePositiveNumber(row, 'selling_price', rowNum);
   const discount = parseNonNegativeNumber(row, 'discount', rowNum);
   const tax = parseNonNegativeNumber(row, 'tax', rowNum);
@@ -185,22 +198,22 @@ const buildShipmentDtoFromRow = async (row, caller, baseMerchantId, rowNum) => {
     merchantId: rowMerchantId,
     distributorId,
     origin: {
-      name:        row.origin_name,
-      phone:       row.origin_phone,
-      addressLine: row.origin_address,
-      city:        row.origin_city,
-      state:       row.origin_state,
-      pincode:     row.origin_pincode,
+      name:        requireText(row, 'origin_name', rowNum),
+      phone:       requireText(row, 'origin_phone', rowNum),
+      addressLine: requireText(row, 'origin_address', rowNum),
+      city:        requireText(row, 'origin_city', rowNum),
+      state:       requireText(row, 'origin_state', rowNum),
+      pincode:     requireText(row, 'origin_pincode', rowNum),
       country:     row.origin_country || 'India',
     },
     destination: {
-      name:        row.dest_name,
-      phone:       row.dest_phone,
+      name:        requireText(row, 'dest_name', rowNum),
+      phone:       requireText(row, 'dest_phone', rowNum),
       ...(row.dest_email ? { email: row.dest_email } : {}),
-      addressLine: row.dest_address,
-      city:        row.dest_city,
-      state:       row.dest_state,
-      pincode:     row.dest_pincode,
+      addressLine: requireText(row, 'dest_address', rowNum),
+      city:        requireText(row, 'dest_city', rowNum),
+      state:       requireText(row, 'dest_state', rowNum),
+      pincode:     requireText(row, 'dest_pincode', rowNum),
       country:     row.dest_country || 'India',
     },
     weight,
@@ -211,8 +224,8 @@ const buildShipmentDtoFromRow = async (row, caller, baseMerchantId, rowNum) => {
     isCOD: paymentMethod === 'COD',
     paymentMethod,
     codAmount,
-    productName: row.product_name,
-    sku: row.sku,
+    productName: requireText(row, 'product_name', rowNum),
+    sku: requireText(row, 'sku', rowNum),
     quantity,
     sellingPrice,
     discount,
@@ -258,7 +271,7 @@ const bulkUploadService = async (fileBuffer, caller, mimetype = 'text/csv') => {
       results.created++;
     } catch (rowErr) {
       results.failed++;
-      results.errors.push(rowErr.message || `Row ${rowNum}: unknown error`);
+      results.errors.push({ row: rowNum, reason: rowErr.message || `Row ${rowNum}: unknown error` });
     }
   }
 
@@ -316,7 +329,7 @@ const processBulkUploadAsync = async (jobId, fileBuffer, caller, mimetype = 'tex
       } catch (rowErr) {
         failed++;
         const errMsg = rowErr.message || `Row ${rowNum}: unknown error`;
-        if (errors.length < 200) errors.push(errMsg);
+        if (errors.length < 200) errors.push({ row: rowNum, reason: errMsg });
 
         await BulkJob.findOneAndUpdate({ jobId }, {
           createdRows: created,

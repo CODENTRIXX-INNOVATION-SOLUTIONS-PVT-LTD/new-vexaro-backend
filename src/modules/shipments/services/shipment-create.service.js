@@ -85,7 +85,7 @@ const normalizeOrderItems = (dto, awb) => {
 
   const orderItems = sourceItems.map((item) => ({
     productName:  String(item.productName || item.name || '').trim(),
-    sku:          String(item.sku || '').trim(),
+    sku:          String(item.sku || `SKU-${awb}`).trim(),
     quantity:     Number(item.quantity || item.units || 1),
     sellingPrice: roundMoney(item.sellingPrice ?? item.selling_price ?? 0),
     discount:     roundMoney(item.discount || 0),
@@ -93,8 +93,8 @@ const normalizeOrderItems = (dto, awb) => {
   }));
 
   for (const item of orderItems) {
-    if (!item.productName || !item.sku || !item.quantity || item.quantity <= 0) {
-      throw Object.assign(new Error('Each order item must include productName, sku, quantity, and sellingPrice.'), { statusCode: 400 });
+    if (!item.productName || !item.quantity || item.quantity <= 0) {
+      throw Object.assign(new Error('Each order item must include productName, quantity, and sellingPrice.'), { statusCode: 400 });
     }
   }
 
@@ -180,6 +180,7 @@ const createShipmentService = async (dto, caller) => {
   }
 
   const awb = await generateUniqueAWB();
+  const merchantOrderRef = String(dto.merchantOrderRef || awb).trim();
   const paymentMethod = normalizePaymentMethod(dto);
   const { orderItems, subTotal, totalDiscount, totalTax } = normalizeOrderItems(dto, awb);
   const declaredValue = roundMoney(dto.declaredValue || subTotal);
@@ -290,7 +291,7 @@ const createShipmentService = async (dto, caller) => {
         codStatus:        isCOD ? 'PENDING' : 'REMITTED',
         payoutStatus:     isCOD ? 'PENDING' : 'PAID',
         serviceType:      dto.serviceType      ?? 'STANDARD',
-        merchantOrderRef: dto.merchantOrderRef ?? null,
+        merchantOrderRef,
         invoiceNumber:    dto.invoiceNumber    ?? null,
         notes:            dto.notes            ?? null,
         status:           ShipmentStatus.ORDER_CREATED,

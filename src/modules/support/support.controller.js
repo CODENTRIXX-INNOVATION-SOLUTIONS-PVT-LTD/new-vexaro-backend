@@ -4,6 +4,7 @@ const supportService = require('./support.service');
 const { success, created, paginated } = require('../../utils/response');
 const { getPaginationParams, buildPaginationMeta } = require('../../utils/pagination');
 const { UserRole } = require('../../constants');
+const { User } = require('../users/user.model');
 
 /**
  * Support Controller
@@ -15,7 +16,10 @@ const getTickets = async (req, res) => {
   
   // Build scoped filter
   const filter = {};
-  if (![UserRole.SUPER_ADMIN, UserRole.DISTRIBUTOR].includes(req.user.role)) {
+  if (req.user.role === UserRole.DISTRIBUTOR) {
+    const merchants = await User.find({ role: UserRole.MERCHANT, invitedBy: req.user.userId, deletedAt: null }, '_id').lean();
+    filter.raisedBy = { $in: [req.user.userId, ...merchants.map((merchant) => merchant._id)] };
+  } else if (req.user.role !== UserRole.SUPER_ADMIN) {
     filter.raisedBy = req.user.userId;
   }
   if (query.status)   filter.status   = query.status;
@@ -43,7 +47,7 @@ const getTicketById = async (req, res) => {
 
 const updateTicket = async (req, res) => {
   const dto = req.validated.body;
-  const ticket = await supportService.updateTicketService(req.params.id, dto);
+  const ticket = await supportService.updateTicketService(req.params.id, dto, req.user);
   success(res, 'Ticket updated', ticket);
 };
 

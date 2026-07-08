@@ -3,6 +3,29 @@
 const axios = require('axios');
 const logger = require('../logger');
 
+const normalizeTrackingResponse = (body, awbs) => {
+  const candidate = body?.result || body?.payload || body?.data || body;
+  if (!candidate) return {};
+
+  if (Array.isArray(candidate)) {
+    return candidate.reduce((acc, entry, index) => {
+      const key = entry?.awb || entry?.awb_code || entry?.tracking_number || awbs[index];
+      if (key) acc[String(key)] = entry;
+      return acc;
+    }, {});
+  }
+
+  if (typeof candidate === 'object') {
+    if (candidate.awb || candidate.awb_code || candidate.tracking_number) {
+      const key = candidate.awb || candidate.awb_code || candidate.tracking_number;
+      return { [String(key)]: candidate };
+    }
+    return candidate;
+  }
+
+  return {};
+};
+
 class VelocityTrackingClient {
   constructor(baseClient) {
     this.baseClient = baseClient;
@@ -36,9 +59,15 @@ class VelocityTrackingClient {
       );
     }
 
-    // Normalise: always return a plain object, never null/undefined.
-    if (response.data?.status === 'SUCCESS' || response.data?.result) {
-      return response.data.result || {};
+    // Normalise: always return a plain object keyed by carrier AWB.
+    if (
+      response.data?.status === 'SUCCESS'
+      || response.data?.status === 1
+      || response.data?.result
+      || response.data?.payload
+      || response.data?.data
+    ) {
+      return normalizeTrackingResponse(response.data, awbs);
     }
 
     // Non-success is a soft failure for tracking — log a warning and return empty
