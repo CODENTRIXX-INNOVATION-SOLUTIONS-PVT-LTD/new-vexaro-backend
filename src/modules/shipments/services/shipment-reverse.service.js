@@ -7,6 +7,21 @@ const userRepository = require('../../users/user.repository');
 const { velocityClient } = require('../../../utils/velocity');
 const { createNotification } = require('../../notifications/notification.service');
 
+const roundMoney = (value) => Math.round(Number(value || 0) * 100) / 100;
+
+const normalizeReverseItemForDb = (item) => ({
+  productName:    item.name,
+  sku:            item.sku,
+  quantity:       item.units,
+  sellingPrice:   roundMoney(item.selling_price),
+  discount:       roundMoney(item.discount),
+  tax:            roundMoney(item.tax),
+  qcEnable:       Boolean(item.qc_enable),
+  qcProductName:  item.qc_product_name || item.name,
+  qcBrand:        item.qc_brand || null,
+  qcProductImage: item.qc_product_image || null,
+});
+
 const createReverseShipmentService = async (dto, caller) => {
   let merchantId;
   if (caller.role === UserRole.MERCHANT) {
@@ -57,8 +72,9 @@ const createReverseShipmentService = async (dto, caller) => {
   }
 
   const orderId = dto.orderId || `RET-VX-${Date.now()}`;
+  const paymentMethod = String(dto.paymentMethod || 'PREPAID').toUpperCase();
   const velocityResult = await velocityClient.createReverseOrder(
-    { ...dto, orderId },
+    { ...dto, orderId, paymentMethod },
     warehouse.velocityWarehouseId,
     dto.carrierId || '',
   );
@@ -82,11 +98,18 @@ const createReverseShipmentService = async (dto, caller) => {
     isReturn:           true,
     carrierAWB:         velocityResult.awb,
     carrier:            velocityResult.carrierName,
+    velocityCarrierId:  velocityResult.carrierId || null,
     velocityShipmentId: velocityResult.shipmentId,
     velocityOrderId:    velocityResult.velocityOrderId,
     velocityReturnId:   velocityResult.returnId || null,
     velocityBooked:     true,
     velocityBookedAt:   new Date(),
+    trackingUrl:        velocityResult.trackingUrl || (velocityResult.awb ? `https://www.velocityshipping.in/track/${velocityResult.awb}` : null),
+    labelUrl:           velocityResult.labelUrl || null,
+    manifestUrl:        velocityResult.manifestUrl || null,
+    estimatedDelivery:  velocityResult.estimatedDelivery ? new Date(velocityResult.estimatedDelivery) : null,
+    shipmentType:       'return',
+    subStatus:          'return_pickup_scheduled',
     origin: {
       name:        dto.pickupFirstName + ' ' + (dto.pickupLastName || ''),
       phone:       dto.pickupPhone,
@@ -109,9 +132,14 @@ const createReverseShipmentService = async (dto, caller) => {
     length:        dto.length,
     breadth:       dto.breadth,
     height:        dto.height,
-    declaredValue: dto.subTotal || 0,
+    declaredValue: roundMoney(dto.subTotal || 0),
     isCOD:         false,
     codAmount:     0,
+    paymentMethod,
+    orderItems:    (dto.orderItems || []).map(normalizeReverseItemForDb),
+    subTotal:      roundMoney(dto.subTotal || 0),
+    totalDiscount: roundMoney(dto.totalDiscount || 0),
+    totalTax:      roundMoney((dto.orderItems || []).reduce((sum, item) => sum + Number(item.tax || 0), 0)),
     codStatus:     'REMITTED',
     payoutStatus:  'PAID',
     merchantCost:  0,
@@ -123,8 +151,10 @@ const createReverseShipmentService = async (dto, caller) => {
       updatedBy: caller.userId,
       note:      'Reverse pickup shipment created',
     }],
-    merchantOrderRef: dto.orderId || null,
-    notes:            'Return shipment',
+    merchantOrderRef: orderId,
+    notes:            dto.notes || 'Return shipment',
+    qcStatus:         qcItems.length ? 'ELIGIBLE' : 'NOT_ELIGIBLE',
+    qcImages:         qcItems.map(item => item.qc_product_image).filter(Boolean),
   });
 
   try {

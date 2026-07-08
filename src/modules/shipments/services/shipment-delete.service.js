@@ -46,6 +46,7 @@ const performCancellation = async (shipment, caller, session, velocityResult = n
   }
 
   shipment.status = ShipmentStatus.CANCELLED;
+  shipment.cancellationResult = velocityResult;
   shipment.statusHistory.push({
     status: ShipmentStatus.CANCELLED,
     updatedBy: caller.userId,

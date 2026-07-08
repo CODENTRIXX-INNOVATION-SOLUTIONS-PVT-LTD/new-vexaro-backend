@@ -7,24 +7,16 @@ const {
 
 describe('shipment.constants', () => {
   describe('REQUIRED_CSV_COLS', () => {
-    test('contains all 13 expected column names', () => {
+    test('contains all 24 expected column names', () => {
       const expectedColumns = [
-        'origin_name',
-        'origin_phone',
-        'origin_address',
-        'origin_city',
-        'origin_state',
-        'origin_pincode',
-        'dest_name',
-        'dest_phone',
-        'dest_address',
-        'dest_city',
-        'dest_state',
-        'dest_pincode',
-        'weight',
+        'origin_name', 'origin_phone', 'origin_address', 'origin_city', 'origin_state', 'origin_pincode',
+        'dest_name',   'dest_phone',   'dest_address',   'dest_city',   'dest_state',   'dest_pincode',
+        'weight', 'length', 'breadth', 'height',
+        'product_name', 'sku', 'selling_price', 'discount', 'tax',
+        'declared_value', 'payment_method', 'cod_amount',
       ];
 
-      expect(REQUIRED_CSV_COLS).toHaveLength(13);
+      expect(REQUIRED_CSV_COLS).toHaveLength(24);
       expect(REQUIRED_CSV_COLS).toEqual(expectedColumns);
     });
 

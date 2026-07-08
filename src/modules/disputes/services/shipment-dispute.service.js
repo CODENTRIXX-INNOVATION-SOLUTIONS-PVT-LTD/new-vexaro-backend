@@ -63,6 +63,9 @@ const getDisputeService = async (id, caller) => {
   if (caller.role === UserRole.MERCHANT && toIdString(dispute.raisedBy) !== caller.userId.toString()) {
     throw Object.assign(new Error('Access denied'), { statusCode: 403 });
   }
+  if (caller.role === UserRole.DISTRIBUTOR && toIdString(dispute.shipmentId?.distributorId) !== caller.userId.toString()) {
+    throw Object.assign(new Error('Access denied'), { statusCode: 403 });
+  }
 
   return dispute;
 };

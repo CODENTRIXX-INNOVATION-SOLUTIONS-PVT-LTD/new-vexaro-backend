@@ -193,7 +193,7 @@ class VelocityOrderClient {
         warehouse_id: velocityWarehouseId,
 
         order_items: dto.orderItems,
-        payment_method: 'PREPAID',
+        payment_method: String(dto.paymentMethod || 'PREPAID').toUpperCase(),
         total_discount: dto.totalDiscount || 0,
         sub_total: dto.subTotal,
 
@@ -223,6 +223,11 @@ class VelocityOrderClient {
           velocityOrderId: p.order_id,
           carrierName: p.courier_name,
           carrierId: p.courier_company_id,
+          returnId: p.return_id || p.returnId || null,
+          labelUrl: p.label_url || null,
+          manifestUrl: p.manifest_url || p.manifestUrl || null,
+          trackingUrl: p.tracking_url || (p.awb_code ? `https://www.velocityshipping.in/track/${p.awb_code}` : null),
+          estimatedDelivery: p.estimated_delivery_date || p.edd || null,
           charges: p.charges || null,
         };
       }

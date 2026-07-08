@@ -37,6 +37,8 @@ const buildShipmentFilter = (caller, query = {}) => {
 
   // Common optional filters available to all roles
   if (query.status) filter.status = query.status;
+  if (typeof query.isReturn === 'boolean') filter.isReturn = query.isReturn;
+  if (query.shipmentType) filter.shipmentType = query.shipmentType;
 
   if (query.carrier) {
     const escapedCarrier = query.carrier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
