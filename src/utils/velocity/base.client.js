@@ -104,6 +104,23 @@ class VelocityBaseClient {
       Authorization: token,   // raw token — NOT "Bearer token"
     };
   }
+
+  /**
+   * Call this when any Velocity API returns 401/CREDENTIALS_EXPIRED.
+   * Clears the in-memory and Redis token so the next getAuthToken() call
+   * performs a live re-authentication instead of replaying the dead token.
+   */
+  async invalidateToken() {
+    this.cachedToken = null;
+    this.tokenExpiry = null;
+    try {
+      const { del, KEYS } = require('../cache');
+      await del(KEYS.velocityToken());
+    } catch (_) {
+      // Redis unavailable — in-memory bust above is enough
+    }
+    logger.info('velocity_token_invalidated');
+  }
 }
 
 module.exports = VelocityBaseClient;
