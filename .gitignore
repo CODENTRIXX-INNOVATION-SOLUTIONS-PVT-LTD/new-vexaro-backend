@@ -7,6 +7,9 @@ dist/
 *.log
 .DS_Store
 
+script/seed-admin.js
+script/seed-courier-rate-cards.js
+
 # Docker
 docker-compose.override.yml
 

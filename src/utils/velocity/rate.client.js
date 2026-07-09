@@ -24,16 +24,35 @@ class VelocityRateClient {
         { headers },
       );
     } catch (httpErr) {
-      // Network / auth error — already tagged or wrap it
-      if (httpErr.statusCode) throw httpErr;
-      const detail = httpErr.response?.data
-        ? JSON.stringify(httpErr.response.data)
-        : httpErr.message;
-      logger.error('velocity_serviceability_http_failed', { error: detail });
-      throw Object.assign(
-        new Error(`Velocity serviceability check failed: ${detail}`),
-        { statusCode: 502 },
-      );
+      // If Velocity says the token is expired/invalid, bust the cache and retry once
+      const status = httpErr.response?.status;
+      const msg    = JSON.stringify(httpErr.response?.data || '');
+      if (status === 401 || msg.includes('CREDENTIALS_EXPIRED') || msg.includes('UID not found')) {
+        await this.baseClient.invalidateToken();
+        try {
+          const freshHeaders = await this.baseClient.getHeaders();
+          const payload2 = {
+            from:          fromPincode.toString(),
+            to:            toPincode.toString(),
+            payment_mode:  isCOD ? 'cod' : 'prepaid',
+            shipment_type: isForward ? 'forward' : 'return',
+          };
+          response = await axios.post(
+            `${this.baseClient.baseUrl}custom/api/v1/serviceability`,
+            payload2,
+            { headers: freshHeaders },
+          );
+        } catch (retryErr) {
+          const detail = retryErr.response?.data ? JSON.stringify(retryErr.response.data) : retryErr.message;
+          logger.error('velocity_serviceability_http_failed', { error: detail });
+          throw Object.assign(new Error(`Velocity serviceability check failed: ${detail}`), { statusCode: 502 });
+        }
+      } else {
+        if (httpErr.statusCode) throw httpErr;
+        const detail = httpErr.response?.data ? JSON.stringify(httpErr.response.data) : httpErr.message;
+        logger.error('velocity_serviceability_http_failed', { error: detail });
+        throw Object.assign(new Error(`Velocity serviceability check failed: ${detail}`), { statusCode: 502 });
+      }
     }
 
     if (response.data?.status === 'SUCCESS') {
@@ -50,44 +69,56 @@ class VelocityRateClient {
 
   async getRates(params) {
     let response;
+    const buildPayload = (p) => {
+      const payload = {
+        journey_type:        p.journeyType,
+        origin_pincode:      p.originPincode.toString(),
+        destination_pincode: p.destinationPincode.toString(),
+        dead_weight:         p.deadWeight,
+        length:              p.length,
+        width:               p.width,
+        height:              p.height,
+      };
+      if (p.journeyType === 'forward') {
+        payload.payment_method = p.paymentMethod;
+        if (p.paymentMethod === 'cod') payload.shipment_value = p.shipmentValue;
+      }
+      if (p.journeyType === 'return') {
+        payload.qc_applicable = p.qcApplicable !== false;
+      }
+      return payload;
+    };
+
     try {
       const headers = await this.baseClient.getHeaders();
-      const payload = {
-        journey_type:        params.journeyType,
-        origin_pincode:      params.originPincode.toString(),
-        destination_pincode: params.destinationPincode.toString(),
-        dead_weight:         params.deadWeight,
-        length:              params.length,
-        width:               params.width,
-        height:              params.height,
-      };
-
-      if (params.journeyType === 'forward') {
-        payload.payment_method = params.paymentMethod;
-        if (params.paymentMethod === 'cod') {
-          payload.shipment_value = params.shipmentValue;
-        }
-      }
-
-      if (params.journeyType === 'return') {
-        payload.qc_applicable = params.qcApplicable !== false;
-      }
-
       response = await axios.post(
         `${this.baseClient.baseUrl}custom/api/v1/rates`,
-        payload,
+        buildPayload(params),
         { headers },
       );
     } catch (httpErr) {
-      if (httpErr.statusCode) throw httpErr;
-      const detail = httpErr.response?.data
-        ? JSON.stringify(httpErr.response.data)
-        : httpErr.message;
-      logger.error('velocity_rates_http_failed', { error: detail });
-      throw Object.assign(
-        new Error(`Velocity rates fetch failed: ${detail}`),
-        { statusCode: 502 },
-      );
+      const status = httpErr.response?.status;
+      const msg    = JSON.stringify(httpErr.response?.data || '');
+      if (status === 401 || msg.includes('CREDENTIALS_EXPIRED') || msg.includes('UID not found')) {
+        await this.baseClient.invalidateToken();
+        try {
+          const freshHeaders = await this.baseClient.getHeaders();
+          response = await axios.post(
+            `${this.baseClient.baseUrl}custom/api/v1/rates`,
+            buildPayload(params),
+            { headers: freshHeaders },
+          );
+        } catch (retryErr) {
+          const detail = retryErr.response?.data ? JSON.stringify(retryErr.response.data) : retryErr.message;
+          logger.error('velocity_rates_http_failed', { error: detail });
+          throw Object.assign(new Error(`Velocity rates fetch failed: ${detail}`), { statusCode: 502 });
+        }
+      } else {
+        if (httpErr.statusCode) throw httpErr;
+        const detail = httpErr.response?.data ? JSON.stringify(httpErr.response.data) : httpErr.message;
+        logger.error('velocity_rates_http_failed', { error: detail });
+        throw Object.assign(new Error(`Velocity rates fetch failed: ${detail}`), { statusCode: 502 });
+      }
     }
 
     if (response.data?.status === 'SUCCESS') {
