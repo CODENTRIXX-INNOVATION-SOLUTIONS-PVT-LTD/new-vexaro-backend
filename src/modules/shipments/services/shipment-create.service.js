@@ -222,28 +222,82 @@ const createShipmentService = async (dto, caller) => {
     country: 'India',
   };
 
-  // Validate pricing
-  const rateCard = await RateCard.findOne({ serviceType: dto.serviceType || 'STANDARD', isActive: true });
-  if (!rateCard) {
-    throw Object.assign(new Error(`No active rate card found for service type: ${dto.serviceType || 'STANDARD'}`), { statusCode: 400 });
-  }
+  // Validate pricing - use actual carrier rate if provided, otherwise fall back to rate card calculation
+  let carrierCost = dto.carrierCost || null;
+  let pricing;
 
-  let marginConfig = null;
-  if (distributorId) {
-    marginConfig = await MarginConfig.findOne({ distributorId, rateCardId: rateCard._id, isActive: true });
-  }
+  if (carrierCost && dto.carrierId) {
+    // Use the actual carrier rate from Velocity API
+    const rateCard = await RateCard.findOne({ serviceType: dto.serviceType || 'STANDARD', isActive: true });
+    if (!rateCard) {
+      throw Object.assign(new Error(`No active rate card found for service type: ${dto.serviceType || 'STANDARD'}`), { statusCode: 400 });
+    }
 
-  const pricing = calculateShippingCost({
-    rateCard,
-    marginConfig,
-    distributorId,
-    declaredWeight: dto.weight,
-    length: dto.length,
-    breadth: dto.breadth,
-    height: dto.height,
-    isCOD,
-    codAmount,
-  });
+    let marginConfig = null;
+    if (distributorId) {
+      marginConfig = await MarginConfig.findOne({ distributorId, rateCardId: rateCard._id, isActive: true });
+    }
+
+    const actualCarrierCost = Number(carrierCost);
+    let merchantCost = actualCarrierCost;
+    let distributorCost = actualCarrierCost;
+    let vexaroProfit = 0;
+    let distributorProfit = 0;
+
+    // Apply margins if we have a rate card and margin config
+    if (rateCard && marginConfig && distributorId) {
+      const saMarkup = rateCard.superAdminMarkupPercent ?? 25;
+      distributorCost = parseFloat((actualCarrierCost * (1 + saMarkup / 100)).toFixed(2));
+      
+      const distributorMargin = parseFloat((distributorCost * (marginConfig.marginPercent || 0) / 100).toFixed(2));
+      merchantCost = parseFloat((distributorCost + distributorMargin + (marginConfig.flatMargin || 0)).toFixed(2));
+      
+      vexaroProfit = parseFloat((distributorCost - actualCarrierCost).toFixed(2));
+      distributorProfit = parseFloat((merchantCost - distributorCost).toFixed(2));
+    } else if (rateCard && distributorId) {
+      // Apply super admin markup only
+      const saMarkup = rateCard.superAdminMarkupPercent ?? 25;
+      distributorCost = parseFloat((actualCarrierCost * (1 + saMarkup / 100)).toFixed(2));
+      merchantCost = distributorCost;
+      vexaroProfit = parseFloat((distributorCost - actualCarrierCost).toFixed(2));
+    }
+
+    pricing = {
+      carrierCost: actualCarrierCost,
+      distributorCost,
+      merchantCost,
+      vexaroProfit,
+      distributorProfit,
+      volumetricWeight: 0,
+      billingWeight: dto.weight,
+      baseCharge: actualCarrierCost,
+      fuelCharge: 0,
+      codCharge: 0,
+    };
+  } else {
+    // Fall back to internal rate card calculation
+    const rateCard = await RateCard.findOne({ serviceType: dto.serviceType || 'STANDARD', isActive: true });
+    if (!rateCard) {
+      throw Object.assign(new Error(`No active rate card found for service type: ${dto.serviceType || 'STANDARD'}`), { statusCode: 400 });
+    }
+
+    let marginConfig = null;
+    if (distributorId) {
+      marginConfig = await MarginConfig.findOne({ distributorId, rateCardId: rateCard._id, isActive: true });
+    }
+
+    pricing = calculateShippingCost({
+      rateCard,
+      marginConfig,
+      distributorId,
+      declaredWeight: dto.weight,
+      length: dto.length,
+      breadth: dto.breadth,
+      height: dto.height,
+      isCOD,
+      codAmount,
+    });
+  }
 
   // 1. Transaction block for local draft creation and wallet charge
   let shipment;
