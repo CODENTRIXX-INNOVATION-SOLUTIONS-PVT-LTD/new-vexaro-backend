@@ -62,6 +62,7 @@ const createShipmentSchema = z.object({
   merchantId:    mongoIdSchema.optional(),
 
   carrierId: z.string().trim().optional(),
+  carrierCost: z.number().min(0).optional(),
 }).superRefine((data, ctx) => {
   const hasSingleItem = Boolean(data.productName || data.sku || data.quantity || data.sellingPrice !== undefined);
   if (hasSingleItem) {

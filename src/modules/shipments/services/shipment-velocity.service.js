@@ -173,43 +173,55 @@ const getVelocityRatesService = async (dto, caller) => {
     // Velocity may return either `serviceable_couriers` or `carriers`.
     const rawCarriers = result.serviceable_couriers || result.carriers || [];
 
-    if (rateCard && rawCarriers.length > 0) {
-      const isCOD = dto.paymentMethod === "cod";
-      const codAmount = dto.shipmentValue || 0;
-
-      // Velocity receives grams, pricing service expects kilograms.
-      const declaredWeightKg =
-        (dto.deadWeight ?? dto.deadWeightGrams ?? 0) / 1000;
-
+    if (rawCarriers.length > 0) {
       const enrichedCarriers = rawCarriers.map((carrier) => {
-        const pricing = calculateShippingCost({
-          rateCard,
-          marginConfig,
-          distributorId,
-          declaredWeight: declaredWeightKg,
-          length: dto.length,
-          breadth: dto.width,
-          height: dto.height,
-          isCOD,
-          codAmount,
-        });
+        // Use the actual carrier rates from Velocity API response
+        const carrierTotal = Number(
+          carrier.charges?.total_forward_charges ??
+          carrier.charges?.total_return_charges ??
+          carrier.total_amount ??
+          carrier.rate ??
+          carrier.total ??
+          0
+        );
+
+        let merchantCost = carrierTotal;
+        let distributorCost = carrierTotal;
+        let carrierCost = carrierTotal;
+        let vexaroProfit = 0;
+        let distributorProfit = 0;
+
+        // Only apply margin if we have a rate card and margin config
+        if (rateCard && marginConfig && distributorId) {
+          const saMarkup = rateCard.superAdminMarkupPercent ?? 25;
+          distributorCost = parseFloat((carrierCost * (1 + saMarkup / 100)).toFixed(2));
+          
+          const distributorMargin = parseFloat((distributorCost * (marginConfig.marginPercent || 0) / 100).toFixed(2));
+          merchantCost = parseFloat((distributorCost + distributorMargin + (marginConfig.flatMargin || 0)).toFixed(2));
+          
+          vexaroProfit = parseFloat((distributorCost - carrierCost).toFixed(2));
+          distributorProfit = parseFloat((merchantCost - distributorCost).toFixed(2));
+        } else if (rateCard && distributorId) {
+          // Apply super admin markup only
+          const saMarkup = rateCard.superAdminMarkupPercent ?? 25;
+          distributorCost = parseFloat((carrierCost * (1 + saMarkup / 100)).toFixed(2));
+          merchantCost = distributorCost;
+          vexaroProfit = parseFloat((distributorCost - carrierCost).toFixed(2));
+        }
 
         return {
           ...carrier,
-          merchantCost: pricing.merchantCost,
-          distributorCost: pricing.distributorCost,
-          carrierCost: pricing.carrierCost,
-          vexaroProfit: pricing.vexaroProfit,
-          distributorProfit: pricing.distributorProfit,
+          merchantCost,
+          distributorCost,
+          carrierCost,
+          vexaroProfit,
+          distributorProfit,
         };
       });
 
       // Support both response formats.
       result.carriers = enrichedCarriers;
       result.serviceable_couriers = enrichedCarriers;
-    } else {
-      // No pricing available; still expose carriers for the frontend.
-      result.carriers = rawCarriers;
     }
   }
 
