@@ -262,14 +262,14 @@ router.get(
 // POST /api/finance/merchant-recharge-requests/:id/approve — Distributor approves
 router.post(
   "/merchant-recharge-requests/:id/approve",
-  requireRole(UserRole.DISTRIBUTOR),
+  requireRole(UserRole.SUPER_ADMIN, UserRole.DISTRIBUTOR),
   validateRequest({ params: schemas.financeIdParamsSchema, body: emptyObjectSchema }),
   c.approveMerchantRechargeRequest,
 );
 // POST /api/finance/merchant-recharge-requests/:id/reject  — Distributor rejects
 router.post(
   "/merchant-recharge-requests/:id/reject",
-  requireRole(UserRole.DISTRIBUTOR),
+  requireRole(UserRole.SUPER_ADMIN, UserRole.DISTRIBUTOR),
   validateRequest({
     params: schemas.financeIdParamsSchema,
     body:   schemas.rejectMerchantRechargeRequestSchema,

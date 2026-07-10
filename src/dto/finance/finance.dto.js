@@ -31,10 +31,12 @@ const listQuerySchema = z.object({
   limit:     z.string().optional().transform(v => v ? parseInt(v) : 20).pipe(z.number().int().min(1).max(100)),
   userId:    mongoId.optional(),
   type:      z.enum(Object.values(TransactionType)).optional(),
+  scope:     z.enum(['MERCHANT']).optional(),
   status:    z.string().trim().optional(),
   merchantId:mongoId.optional(),
   dateFrom:  z.string().optional(),
   dateTo:    z.string().optional(),
+  directOnly:z.string().optional().transform(v => v === 'true' || v === '1').optional(),
 });
 
 const transferToMerchantSchema = z.object({

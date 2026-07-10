@@ -2,21 +2,22 @@
 
 const {
   REQUIRED_CSV_COLS,
+  REQUIRED_CSV_ONE_OF_COLS,
   UPDATABLE_FIELDS,
 } = require('../../../../src/modules/shipments/shared/shipment.constants');
 
 describe('shipment.constants', () => {
   describe('REQUIRED_CSV_COLS', () => {
-    test('contains all 25 expected column names', () => {
+    test('contains all required fixed column names', () => {
       const expectedColumns = [
         'origin_name', 'origin_phone', 'origin_address', 'origin_city', 'origin_state', 'origin_pincode',
         'dest_name',   'dest_phone',   'dest_address',   'dest_city',   'dest_state',   'dest_pincode',
         'weight', 'length', 'breadth', 'height',
-        'product_name', 'sku', 'quantity', 'selling_price', 'discount', 'tax',
+        'product_name', 'sku', 'selling_price', 'discount', 'tax',
         'declared_value', 'payment_method', 'cod_amount',
       ];
 
-      expect(REQUIRED_CSV_COLS).toHaveLength(25);
+      expect(REQUIRED_CSV_COLS).toHaveLength(24);
       expect(REQUIRED_CSV_COLS).toEqual(expectedColumns);
     });
 
@@ -27,6 +28,14 @@ describe('shipment.constants', () => {
         expect(typeof col).toBe('string');
         expect(col.length).toBeGreaterThan(0);
       });
+    });
+  });
+
+  describe('REQUIRED_CSV_ONE_OF_COLS', () => {
+    test('accepts units or quantity for item count', () => {
+      expect(REQUIRED_CSV_ONE_OF_COLS).toEqual([
+        ['units', 'quantity'],
+      ]);
     });
   });
 

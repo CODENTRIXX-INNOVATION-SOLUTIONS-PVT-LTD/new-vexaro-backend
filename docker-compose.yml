@@ -73,12 +73,16 @@ services:
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
       
       # Email Configuration
-      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_HOST: ${SMTP_HOST:-smtpout.secureserver.net}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_SECURE: ${SMTP_SECURE:-true}
       SMTP_USER: ${SMTP_USER}
       SMTP_PASS: ${SMTP_PASS}
-      EMAIL_FROM: ${EMAIL_FROM:-noreply@vexaro.com}
+      CONTACT_TO_EMAIL: ${CONTACT_TO_EMAIL}
+      CONTACT_FROM_EMAIL: ${CONTACT_FROM_EMAIL}
+      CONTACT_RATE_LIMIT_WINDOW_MINUTES: ${CONTACT_RATE_LIMIT_WINDOW_MINUTES:-15}
+      CONTACT_RATE_LIMIT_MAX: ${CONTACT_RATE_LIMIT_MAX:-10}
+      EMAIL_FROM: ${EMAIL_FROM:-info@vexarocouriersolutions.com}
       
       # Velocity API
       VELOCITY_API_KEY: ${VELOCITY_API_KEY}

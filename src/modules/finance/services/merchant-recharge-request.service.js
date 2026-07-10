@@ -20,18 +20,19 @@ const createMerchantRechargeRequestService = async (dto, caller) => {
 
   const { amount, note } = dto;
 
-  // Verify merchant exists and find their distributor
+  // Verify merchant exists and determine who should handle the request.
   const merchant = await userRepository.findOne({ _id: caller.userId, deletedAt: null });
   if (!merchant) {
     throw Object.assign(new Error('Merchant not found'), { statusCode: 404 });
   }
-  if (!merchant.invitedBy) {
-    throw Object.assign(new Error('No distributor assigned to your account'), { statusCode: 400 });
-  }
 
-  const distributor = await userRepository.findOne({ _id: merchant.invitedBy, deletedAt: null });
-  if (!distributor || distributor.role !== UserRole.DISTRIBUTOR) {
-    throw Object.assign(new Error('Your distributor account was not found'), { statusCode: 404 });
+  let distributorId = null;
+  if (merchant.invitedBy) {
+    const distributor = await userRepository.findOne({ _id: merchant.invitedBy, deletedAt: null });
+    if (!distributor || distributor.role !== UserRole.DISTRIBUTOR) {
+      throw Object.assign(new Error('Your distributor account was not found'), { statusCode: 404 });
+    }
+    distributorId = merchant.invitedBy;
   }
 
   let wallet = await financeRepository.findWalletByUserId(caller.userId);
@@ -48,21 +49,28 @@ const createMerchantRechargeRequestService = async (dto, caller) => {
 
   const request = await MerchantRechargeRequest.create({
     merchantId: caller.userId,
-    distributorId: merchant.invitedBy,
+    distributorId,
     amount,
     note: note || null,
     status: 'PENDING',
   });
 
-  // Notify distributor
+  // Notify distributor for old flow, otherwise notify Super Admins for direct merchants.
   try {
-    await createNotification(merchant.invitedBy.toString(), {
+    const notification = {
       senderId: merchant._id,
       title: 'Merchant Wallet Top-up Request',
       message: `${merchant.companyName || merchant.firstName} has requested a wallet top-up of ₹${amount.toLocaleString('en-IN')}.`,
       type: 'PAYMENT',
       meta: { requestId: request._id },
-    });
+    };
+
+    if (distributorId) {
+      await createNotification(distributorId.toString(), notification);
+    } else {
+      const admins = await userRepository.findAll({ role: UserRole.SUPER_ADMIN, deletedAt: null }, '_id');
+      await Promise.all(admins.map((admin) => createNotification(admin._id.toString(), notification)));
+    }
   } catch (_) { }
 
   return request;
@@ -81,6 +89,7 @@ const listMerchantRechargeRequestsService = async (query, caller) => {
     filter = { distributorId: caller.userId };
     if (query.status) filter.status = query.status;
   } else if (caller.role === UserRole.SUPER_ADMIN) {
+    if (query.directOnly) filter.distributorId = null;
     if (query.distributorId) filter.distributorId = query.distributorId;
     if (query.merchantId) filter.merchantId = query.merchantId;
     if (query.status) filter.status = query.status;
@@ -108,8 +117,8 @@ const listMerchantRechargeRequestsService = async (query, caller) => {
  * Distributor approves — transfers from distributor wallet to merchant wallet atomically.
  */
 const approveMerchantRechargeRequestService = async (requestId, caller) => {
-  if (caller.role !== UserRole.DISTRIBUTOR) {
-    throw Object.assign(new Error('Only distributors can approve merchant top-up requests'), { statusCode: 403 });
+  if (![UserRole.DISTRIBUTOR, UserRole.SUPER_ADMIN].includes(caller.role)) {
+    throw Object.assign(new Error('Only distributors or Super Admin can approve merchant top-up requests'), { statusCode: 403 });
   }
 
   const request = await MerchantRechargeRequest.findById(requestId)
@@ -118,7 +127,10 @@ const approveMerchantRechargeRequestService = async (requestId, caller) => {
   if (!request) {
     throw Object.assign(new Error('Request not found'), { statusCode: 404 });
   }
-  if (request.distributorId.toString() !== caller.userId) {
+  if (caller.role === UserRole.SUPER_ADMIN && request.distributorId) {
+    throw Object.assign(new Error('Access denied - this request belongs to a distributor'), { statusCode: 403 });
+  }
+  if (caller.role === UserRole.DISTRIBUTOR && (!request.distributorId || request.distributorId.toString() !== caller.userId)) {
     throw Object.assign(new Error('Access denied — this request is not for your merchant'), { statusCode: 403 });
   }
   if (request.status !== 'PENDING') {
@@ -138,6 +150,8 @@ const approveMerchantRechargeRequestService = async (requestId, caller) => {
       { statusCode: 400 },
     );
   }
+
+  const approvalActorLabel = caller.role === UserRole.SUPER_ADMIN ? 'Super Admin' : 'distributor';
 
   return runInTransaction(async (session) => {
     const baseReference = `MERCHANT-RECHARGE-${requestId}`;
@@ -177,7 +191,7 @@ const approveMerchantRechargeRequestService = async (requestId, caller) => {
       request.amount,
       {
         performedBy: caller.userId,
-        note: `Wallet top-up approved by distributor`,
+        note: `Wallet top-up approved by ${approvalActorLabel}`,
         reference: `${baseReference}-CREDIT`,
       },
     );
@@ -211,15 +225,18 @@ const approveMerchantRechargeRequestService = async (requestId, caller) => {
  * Distributor rejects the merchant recharge request.
  */
 const rejectMerchantRechargeRequestService = async (requestId, dto, caller) => {
-  if (caller.role !== UserRole.DISTRIBUTOR) {
-    throw Object.assign(new Error('Only distributors can reject merchant top-up requests'), { statusCode: 403 });
+  if (![UserRole.DISTRIBUTOR, UserRole.SUPER_ADMIN].includes(caller.role)) {
+    throw Object.assign(new Error('Only distributors or Super Admin can reject merchant top-up requests'), { statusCode: 403 });
   }
 
   const request = await MerchantRechargeRequest.findById(requestId);
   if (!request) {
     throw Object.assign(new Error('Request not found'), { statusCode: 404 });
   }
-  if (request.distributorId.toString() !== caller.userId) {
+  if (caller.role === UserRole.SUPER_ADMIN && request.distributorId) {
+    throw Object.assign(new Error('Access denied - this request belongs to a distributor'), { statusCode: 403 });
+  }
+  if (caller.role === UserRole.DISTRIBUTOR && (!request.distributorId || request.distributorId.toString() !== caller.userId)) {
     throw Object.assign(new Error('Access denied — this request is not for your merchant'), { statusCode: 403 });
   }
   if (request.status !== 'PENDING') {
