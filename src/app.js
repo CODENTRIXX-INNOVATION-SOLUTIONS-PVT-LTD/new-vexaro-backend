@@ -14,6 +14,7 @@ const {
   shipmentLimiter,
   webhookLimiter,
   trackingLimiter,
+  rateLimiter,
 } = require('./middleware/rate-limit.middleware');
 
 const authRoutes = require('./modules/auth/auth.routes');
@@ -31,8 +32,14 @@ const rateRoutes = require('./modules/rates/rate.routes');
 const superAdminReportRoutes = require('./modules/super-admin-report/super-admin-report.routes');
 const { errorMiddleware } = require('./middleware/error.middleware');
 const webhookRoutes = require('./modules/webhooks');
+const contactRoutes = require('./modules/contact/contact.routes');
 
 const app = express();
+const contactLimiter = rateLimiter({
+  windowMs: env.CONTACT_RATE_LIMIT_WINDOW_MINUTES * 60 * 1000,
+  max: env.CONTACT_RATE_LIMIT_MAX,
+  message: 'Too many contact form submissions. Please try again later.',
+});
 
 app.use(helmet({
   contentSecurityPolicy: {
@@ -141,6 +148,7 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use('/api/v1/contact', contactLimiter, contactRoutes);
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/shipments', shipmentRoutes);

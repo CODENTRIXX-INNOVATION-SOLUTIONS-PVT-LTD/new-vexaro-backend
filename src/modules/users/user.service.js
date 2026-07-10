@@ -34,6 +34,13 @@ const assertCanManage = (callerRole, targetRole) => {
 };
 
 // ─── Build scoped query filter ─────────────────────────────────────────────────
+const getInviteOwnerId = (targetRole, caller) => {
+  if (targetRole === UserRole.MERCHANT && caller.role === UserRole.SUPER_ADMIN) {
+    return undefined;
+  }
+  return caller.userId;
+};
+
 const buildListFilter = (caller, query) => {
   const filter = { deletedAt: null };
 
@@ -189,6 +196,7 @@ const inviteUserService = async (dto, caller) => {
   assertCanManage(caller.role, dto.role);
   const rawToken = generateToken();
   const tokenHash = hashToken(rawToken);
+  const inviteOwnerId = getInviteOwnerId(dto.role, caller);
 
   const {
     createNotification,
@@ -237,7 +245,7 @@ const inviteUserService = async (dto, caller) => {
       existing.companyName = dto.companyName;
       existing.inviteTokenHash = tokenHash;
       existing.inviteTokenExpiry = tokenExpiry(env.INVITE_TOKEN_EXPIRES_HOURS);
-      existing.invitedBy = existing.invitedBy || caller.userId;
+      existing.invitedBy = existing.invitedBy || inviteOwnerId;
       await userRepository.save(existing, session ? { session } : {});
 
       if (dto.role === UserRole.DISTRIBUTOR || dto.role === UserRole.MERCHANT) {
@@ -272,7 +280,7 @@ const inviteUserService = async (dto, caller) => {
           isActive: false,
           inviteTokenHash: tokenHash,
           inviteTokenExpiry: tokenExpiry(env.INVITE_TOKEN_EXPIRES_HOURS),
-          invitedBy: caller.userId,
+          invitedBy: inviteOwnerId,
         },
         session,
       );

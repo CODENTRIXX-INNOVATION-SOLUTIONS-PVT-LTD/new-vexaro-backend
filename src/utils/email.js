@@ -5,7 +5,7 @@ const { env } = require('../config/env');
 const transporter = nodemailer.createTransport({
   host: env.SMTP_HOST,
   port: env.SMTP_PORT,
-  secure: env.SMTP_PORT === 465,
+  secure: env.SMTP_SECURE || env.SMTP_PORT === 465,
   auth: {
     user: env.SMTP_USER,
     pass: env.SMTP_PASS,
@@ -267,6 +267,45 @@ const sendExportReadyEmail = async ({ to, firstName, format, exportType, jobId }
   });
 };
 
+const escapeHtml = (value = '') => String(value)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+const sendContactEmail = async ({ name, email, phone, company, subject, message }) => {
+  const safe = {
+    name: escapeHtml(name),
+    email: escapeHtml(email),
+    phone: escapeHtml(phone || 'Not provided'),
+    company: escapeHtml(company || 'Not provided'),
+    subject: escapeHtml(subject || 'Website contact enquiry'),
+    message: escapeHtml(message).replace(/\r?\n/g, '<br>'),
+  };
+
+  const html = emailWrapper(`
+    <h2>New Website Contact Enquiry</h2>
+    <div class="note">
+      <strong>Name:</strong> ${safe.name}<br>
+      <strong>Email:</strong> ${safe.email}<br>
+      <strong>Phone:</strong> ${safe.phone}<br>
+      <strong>Company:</strong> ${safe.company}<br>
+      <strong>Subject:</strong> ${safe.subject}
+    </div>
+    <p><strong>Message:</strong></p>
+    <p>${safe.message}</p>
+  `);
+
+  await transporter.sendMail({
+    from: `"Vexaro Website" <${env.CONTACT_FROM_EMAIL}>`,
+    to: env.CONTACT_TO_EMAIL,
+    replyTo: email,
+    subject: `Website enquiry: ${subject || 'Contact form'}`,
+    html,
+  });
+};
+
 module.exports = {
   sendInviteEmail,
   sendResetEmail,
@@ -276,5 +315,6 @@ module.exports = {
   sendRefundRequestSubmittedEmail,
   sendRefundRequestDecisionEmail,
   sendExportReadyEmail,
+  sendContactEmail,
   verifyEmailConfig,
 };
