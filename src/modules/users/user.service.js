@@ -410,13 +410,31 @@ const deactivateUserService = async (id, caller) => {
     throw err;
   }
 
+  const deletedAt = new Date();
   user.isActive = false;
-  // user.deletedAt = new Date();
+  user.deletedAt = deletedAt;
 
   // Revoke all refresh tokens for this user
   const { RefreshToken } = require("../auth/refresh-token.model");
+  let revokedUserIds = [user._id];
+  if (user.role === UserRole.DISTRIBUTOR) {
+    const merchants = await userRepository.findAll(
+      { invitedBy: user._id, role: UserRole.MERCHANT, deletedAt: null },
+      '_id',
+    );
+    const merchantIds = merchants.map((merchant) => merchant._id);
+    if (merchantIds.length) {
+      await userRepository.updateMany(
+        { _id: { $in: merchantIds } },
+        { isActive: false, deletedAt },
+      );
+      revokedUserIds = revokedUserIds.concat(merchantIds);
+      await Promise.all(merchantIds.map((merchantId) => del(KEYS.userProfile(merchantId.toString()))));
+    }
+  }
+
   await RefreshToken.updateMany(
-    { userId: user._id, isRevoked: false },
+    { userId: { $in: revokedUserIds }, isRevoked: false },
     { isRevoked: true },
   );
   logger.info("user_deactivated_tokens_revoked", {
@@ -427,7 +445,7 @@ const deactivateUserService = async (id, caller) => {
   await userRepository.save(user);
   await del(KEYS.userProfile(user._id.toString()));
 
-  return { message: "User deactivated successfully." };
+  return { message: "User deleted successfully." };
 };
 
 // ─── Resend Invite ───────────────────────────────────────────────────────────

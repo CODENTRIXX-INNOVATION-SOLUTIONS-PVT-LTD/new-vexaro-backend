@@ -1,12 +1,16 @@
 'use strict';
 
-const { UserRole, TransactionType, SystemConfig } = require('../../../constants');
+const { UserRole, TransactionType } = require('../../../constants');
 const { getPaginationParams } = require('../../../utils/pagination');
 const { runInTransaction } = require('../../../utils/transaction');
 const financeRepository = require('../finance.repository');
 const userRepository = require('../../users/user.repository');
 const { applyTransaction } = require('./payment.service');
 const { createNotification } = require('../../notifications/notification.service');
+const {
+  decorateWalletForRole,
+  validateTopupAmountForPolicy,
+} = require('../wallet-topup-policy');
 
 const createWalletService = async (userId, session = null) => {
   const existing = await financeRepository.findWalletByUserId(userId, session);
@@ -28,13 +32,7 @@ const getMyWalletService = async (caller) => {
     }
   }
 
-  const plainWallet = wallet.toObject ? wallet.toObject() : wallet;
-  const reserve = (caller.role === UserRole.DISTRIBUTOR || caller.role === UserRole.MERCHANT)
-    ? SystemConfig.WALLET_RESERVE_AMOUNT
-    : 0;
-  plainWallet.reservedBalance = reserve;
-  plainWallet.availableBalance = Math.max(0, plainWallet.balance - reserve);
-  return plainWallet;
+  return decorateWalletForRole(wallet, caller.role);
 };
 
 const listWalletsService = async (query, caller) => {
@@ -53,16 +51,11 @@ const listWalletsService = async (query, caller) => {
   const filter = { userId: { $in: userIds } };
 
   const [wallets, total] = await financeRepository.findWalletsPaginated(filter, { skip, limit });
-  const enrichedWallets = wallets.map(wallet => {
+  const enrichedWallets = await Promise.all(wallets.map((wallet) => {
     const plainWallet = wallet.toObject ? wallet.toObject() : wallet;
     const role = plainWallet.userId?.role;
-    const reserve = (role === UserRole.DISTRIBUTOR || role === UserRole.MERCHANT)
-      ? SystemConfig.WALLET_RESERVE_AMOUNT
-      : 0;
-    plainWallet.reservedBalance = reserve;
-    plainWallet.availableBalance = Math.max(0, plainWallet.balance - reserve);
-    return plainWallet;
-  });
+    return decorateWalletForRole(wallet, role);
+  }));
 
   return { items: enrichedWallets, total };
 };
@@ -87,15 +80,7 @@ const topupWalletService = async (dto, caller) => {
       wallet = await createWalletService(targetUserId, session);
     }
 
-    if (targetUser.role === UserRole.DISTRIBUTOR || targetUser.role === UserRole.MERCHANT) {
-      const hasRecharge = await financeRepository.hasCompletedRecharge(wallet._id, session);
-      if (!hasRecharge && amount < SystemConfig.WALLET_MIN_FIRST_TOPUP) {
-        throw Object.assign(
-          new Error(`First wallet top-up must be at least ₹${SystemConfig.WALLET_MIN_FIRST_TOPUP.toLocaleString('en-IN')} (includes ₹${SystemConfig.WALLET_RESERVE_AMOUNT.toLocaleString('en-IN')} mandatory security reserve)`),
-          { statusCode: 400 }
-        );
-      }
-    }
+    await validateTopupAmountForPolicy({ wallet, role: targetUser.role, amount, session });
 
     const { wallet: updatedWallet, transaction } = await applyTransaction(session, targetUserId, TransactionType.TOPUP, amount, {
       performedBy: caller.userId,
@@ -103,12 +88,7 @@ const topupWalletService = async (dto, caller) => {
       reference: `TOPUP-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     });
 
-    const plainWallet = updatedWallet.toObject ? updatedWallet.toObject() : updatedWallet;
-    const reserve = (targetUser.role === UserRole.DISTRIBUTOR || targetUser.role === UserRole.MERCHANT)
-      ? SystemConfig.WALLET_RESERVE_AMOUNT
-      : 0;
-    plainWallet.reservedBalance = reserve;
-    plainWallet.availableBalance = Math.max(0, plainWallet.balance - reserve);
+    const plainWallet = await decorateWalletForRole(updatedWallet, targetUser.role, session);
 
     return { wallet: plainWallet, transaction };
   });

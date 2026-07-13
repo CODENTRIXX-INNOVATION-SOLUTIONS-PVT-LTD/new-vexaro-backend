@@ -43,6 +43,10 @@ const createInSession = (data, session) =>
 const findByIdAndUpdate = (id, update, options = {}) =>
   User.findByIdAndUpdate(id, update, { returnDocument: 'after', ...options });
 
+/** Update all users matching a filter. */
+const updateMany = (filter, update, options = {}) =>
+  User.updateMany(filter, update, options);
+
 /** Save a user document (triggers pre-save hooks). */
 const save = (user, options = {}) => user.save(options);
 
@@ -60,6 +64,7 @@ module.exports = {
   findPaginated,
   createInSession,
   findByIdAndUpdate,
+  updateMany,
   save,
   count,
   findAll,

@@ -6,13 +6,14 @@ const transporter = nodemailer.createTransport({
   host: env.SMTP_HOST,
   port: env.SMTP_PORT,
   secure: env.SMTP_SECURE || env.SMTP_PORT === 465,
+  authMethod: env.SMTP_AUTH_METHOD || undefined,
   auth: {
     user: env.SMTP_USER,
     pass: env.SMTP_PASS,
   },
-  connectionTimeout: 5000,
-  greetingTimeout: 5000,
-  socketTimeout: 10000,
+  connectionTimeout: 30000,
+  greetingTimeout: 30000,
+  socketTimeout: 30000,
 });
 
 // ─── Base HTML wrapper ─────────────────────────────────────────────────────────
@@ -186,7 +187,9 @@ const verifyEmailConfig = async () => {
     await transporter.verify();
     console.log('✅ SMTP connection verified');
   } catch (error) {
-    console.warn('⚠️  SMTP verification failed (emails may not send):', error);
+    console.warn(
+      `⚠️  SMTP verification failed: ${error.code || 'ERROR'} ${error.responseCode || ''} ${error.response || error.message}`,
+    );
   }
 };
 
@@ -275,34 +278,76 @@ const escapeHtml = (value = '') => String(value)
   .replace(/'/g, '&#39;');
 
 const sendContactEmail = async ({ name, email, phone, company, subject, message }) => {
+  const sentAt = new Date().toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+  const companyName = company?.trim() || 'N/A';
   const safe = {
+    sentAt: escapeHtml(sentAt),
     name: escapeHtml(name),
     email: escapeHtml(email),
-    phone: escapeHtml(phone || 'Not provided'),
-    company: escapeHtml(company || 'Not provided'),
-    subject: escapeHtml(subject || 'Website contact enquiry'),
+    phone: escapeHtml(phone),
+    company: escapeHtml(companyName),
+    subject: escapeHtml(subject),
     message: escapeHtml(message).replace(/\r?\n/g, '<br>'),
   };
 
-  const html = emailWrapper(`
-    <h2>New Website Contact Enquiry</h2>
-    <div class="note">
-      <strong>Name:</strong> ${safe.name}<br>
-      <strong>Email:</strong> ${safe.email}<br>
-      <strong>Phone:</strong> ${safe.phone}<br>
-      <strong>Company:</strong> ${safe.company}<br>
-      <strong>Subject:</strong> ${safe.subject}
-    </div>
-    <p><strong>Message:</strong></p>
-    <p>${safe.message}</p>
-  `);
+  const html = `
+    <h2>New VEXARO Contact Form Enquiry</h2>
+
+    <table cellpadding="6" cellspacing="0" border="0">
+      <tr><td><strong>Submitted At</strong></td><td>${safe.sentAt}</td></tr>
+      <tr><td><strong>Full Name</strong></td><td>${safe.name}</td></tr>
+      <tr><td><strong>Email</strong></td><td>${safe.email}</td></tr>
+      <tr><td><strong>Phone</strong></td><td>${safe.phone}</td></tr>
+      <tr><td><strong>Company</strong></td><td>${safe.company}</td></tr>
+      <tr><td><strong>Subject</strong></td><td>${safe.subject}</td></tr>
+      <tr><td><strong>Message</strong></td><td>${safe.message}</td></tr>
+    </table>
+  `;
+
+  const text =
+    `New VEXARO Contact Form Enquiry\n\n` +
+    `Submitted At: ${sentAt}\n\n` +
+    `Full Name: ${name}\n` +
+    `Email: ${email}\n` +
+    `Phone: ${phone}\n` +
+    `Company: ${companyName}\n\n` +
+    `Subject:\n${subject}\n\n` +
+    `Message:\n${message}`;
+
+  const replyHtml = `
+    <p>Dear ${safe.name},</p>
+    <p>Thank you for contacting VEXARO Courier Solutions.</p>
+    <p>We have successfully received your enquiry and our team will get back to you within 2 business hours.</p>
+    <p>Regards,<br>VEXARO Courier Solutions<br>https://vexarocouriersolutions.com</p>
+  `;
+
+  const replyText =
+    `Dear ${name},\n\n` +
+    `Thank you for contacting VEXARO Courier Solutions.\n\n` +
+    `We have successfully received your enquiry and our team will get back to you within 2 business hours.\n\n` +
+    `Regards,\nVEXARO Courier Solutions\nhttps://vexarocouriersolutions.com`;
+
+  const from = `"Vexaro Courier Solutions" <${env.CONTACT_FROM_EMAIL || env.SMTP_USER}>`;
 
   await transporter.sendMail({
-    from: `"Vexaro Website" <${env.CONTACT_FROM_EMAIL}>`,
-    to: env.CONTACT_TO_EMAIL,
-    replyTo: email,
-    subject: `Website enquiry: ${subject || 'Contact form'}`,
+    from,
+    to: env.CONTACT_TO_EMAIL || env.SMTP_USER,
+    replyTo: `"${name}" <${email}>`,
+    subject: `VEXARO Website Enquiry: ${subject}`,
+    text,
     html,
+  });
+
+  await transporter.sendMail({
+    from,
+    to: `"${name}" <${email}>`,
+    subject: 'Thank You for Contacting VEXARO',
+    text: replyText,
+    html: replyHtml,
   });
 };
 

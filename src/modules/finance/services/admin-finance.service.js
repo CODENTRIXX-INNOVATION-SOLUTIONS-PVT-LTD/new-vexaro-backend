@@ -1,12 +1,13 @@
 'use strict';
 
-const { UserRole, TransactionType, SystemConfig } = require('../../../constants');
+const { UserRole, TransactionType } = require('../../../constants');
 const { getPaginationParams } = require('../../../utils/pagination');
 const { runInTransaction } = require('../../../utils/transaction');
 const financeRepository = require('../finance.repository');
 const userRepository = require('../../users/user.repository');
 const { applyTransaction } = require('./payment.service');
 const { createNotification } = require('../../notifications/notification.service');
+const { validateTopupAmountForPolicy } = require('../wallet-topup-policy');
 
 /**
  * Get admin dashboard statistics
@@ -70,13 +71,7 @@ const rechargeDistributorWalletService = async (dto, caller) => {
     if (!walletDoc) {
       walletDoc = await createWalletService(distributorId, session);
     }
-    const hasRecharge = await financeRepository.hasCompletedRecharge(walletDoc._id, session);
-    if (!hasRecharge && amount < SystemConfig.WALLET_MIN_FIRST_TOPUP) {
-      throw Object.assign(
-        new Error(`First wallet top-up must be at least ₹${SystemConfig.WALLET_MIN_FIRST_TOPUP.toLocaleString('en-IN')} (includes ₹${SystemConfig.WALLET_RESERVE_AMOUNT.toLocaleString('en-IN')} mandatory security reserve)`),
-        { statusCode: 400 }
-      );
-    }
+    await validateTopupAmountForPolicy({ wallet: walletDoc, role: distributor.role, amount, session });
 
     const baseReference = `ADMIN-TRANSFER-${Date.now()}`;
 
@@ -236,13 +231,7 @@ const approveRechargeRequestService = async (requestId, caller) => {
     if (!walletDoc) {
       walletDoc = await createWalletService(distributorId, session);
     }
-    const hasRecharge = await financeRepository.hasCompletedRecharge(walletDoc._id, session);
-    if (!hasRecharge && request.amount < SystemConfig.WALLET_MIN_FIRST_TOPUP) {
-      throw Object.assign(
-        new Error(`First wallet top-up must be at least ₹${SystemConfig.WALLET_MIN_FIRST_TOPUP.toLocaleString('en-IN')} (includes ₹${SystemConfig.WALLET_RESERVE_AMOUNT.toLocaleString('en-IN')} mandatory security reserve)`),
-        { statusCode: 400 }
-      );
-    }
+    await validateTopupAmountForPolicy({ wallet: walletDoc, role: UserRole.DISTRIBUTOR, amount: request.amount, session });
 
     const baseReference = `RECHARGE-REQ-${requestId}`;
 
@@ -346,13 +335,7 @@ const createRechargeRequestService = async (dto, caller) => {
     const { createWalletService } = require('./wallet.service');
     wallet = await createWalletService(caller.userId);
   }
-  const hasRecharge = await financeRepository.hasCompletedRecharge(wallet._id);
-  if (!hasRecharge && amount < SystemConfig.WALLET_MIN_FIRST_TOPUP) {
-    throw Object.assign(
-      new Error(`First wallet top-up must be at least ₹${SystemConfig.WALLET_MIN_FIRST_TOPUP.toLocaleString('en-IN')} (includes ₹${SystemConfig.WALLET_RESERVE_AMOUNT.toLocaleString('en-IN')} mandatory security reserve)`),
-      { statusCode: 400 }
-    );
-  }
+  await validateTopupAmountForPolicy({ wallet, role: caller.role, amount });
 
   const request = await RechargeRequest.create({
     userId: caller.userId,

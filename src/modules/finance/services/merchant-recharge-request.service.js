@@ -1,6 +1,6 @@
 'use strict';
 
-const { UserRole, TransactionType, SystemConfig } = require('../../../constants');
+const { UserRole, TransactionType } = require('../../../constants');
 const { getPaginationParams } = require('../../../utils/pagination');
 const { runInTransaction } = require('../../../utils/transaction');
 const userRepository = require('../../users/user.repository');
@@ -9,6 +9,7 @@ const { applyTransaction } = require('./payment.service');
 const { createNotification } = require('../../notifications/notification.service');
 const { MerchantRechargeRequest } = require('../merchant-recharge-request.model');
 const { createWalletService } = require('./wallet.service');
+const { validateTopupAmountForPolicy } = require('../wallet-topup-policy');
 
 /**
  * Merchant submits a top-up request to their distributor.
@@ -39,13 +40,7 @@ const createMerchantRechargeRequestService = async (dto, caller) => {
   if (!wallet) {
     wallet = await createWalletService(caller.userId);
   }
-  const hasRecharge = await financeRepository.hasCompletedRecharge(wallet._id);
-  if (!hasRecharge && amount < SystemConfig.WALLET_MIN_FIRST_TOPUP) {
-    throw Object.assign(
-      new Error(`First wallet top-up must be at least ₹${SystemConfig.WALLET_MIN_FIRST_TOPUP.toLocaleString('en-IN')} (includes ₹${SystemConfig.WALLET_RESERVE_AMOUNT.toLocaleString('en-IN')} mandatory security reserve)`),
-      { statusCode: 400 }
-    );
-  }
+  await validateTopupAmountForPolicy({ wallet, role: caller.role, amount });
 
   const request = await MerchantRechargeRequest.create({
     merchantId: caller.userId,
@@ -161,13 +156,7 @@ const approveMerchantRechargeRequestService = async (requestId, caller) => {
     const merchantWallet = await createWalletService(request.merchantId._id.toString(), session);
     logger.info('merchant_wallet_created_or_found', { merchantId: request.merchantId._id.toString(), walletId: merchantWallet._id });
 
-    const hasRecharge = await financeRepository.hasCompletedRecharge(merchantWallet._id, session);
-    if (!hasRecharge && request.amount < SystemConfig.WALLET_MIN_FIRST_TOPUP) {
-      throw Object.assign(
-        new Error(`First wallet top-up must be at least ₹${SystemConfig.WALLET_MIN_FIRST_TOPUP.toLocaleString('en-IN')} (includes ₹${SystemConfig.WALLET_RESERVE_AMOUNT.toLocaleString('en-IN')} mandatory security reserve)`),
-        { statusCode: 400 }
-      );
-    }
+    await validateTopupAmountForPolicy({ wallet: merchantWallet, role: UserRole.MERCHANT, amount: request.amount, session });
 
     // Debit distributor wallet — unique reference suffix prevents idempotency clash with credit
     const debitResult = await applyTransaction(

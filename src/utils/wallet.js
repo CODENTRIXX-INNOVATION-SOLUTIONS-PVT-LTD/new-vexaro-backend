@@ -7,8 +7,9 @@ const getWalletReserveAmount = async (wallet, session = null) => {
     const User = mongoose.models.User || mongoose.model('User');
     const user = await User.findById(wallet.userId).session(session).lean();
     if (user && (user.role === 'MERCHANT' || user.role === 'DISTRIBUTOR')) {
-      const { SystemConfig } = require('../constants');
-      return SystemConfig.WALLET_RESERVE_AMOUNT || 2000;
+      const { getWalletTopupPolicy } = require('../modules/finance/wallet-topup-policy');
+      const policy = await getWalletTopupPolicy(wallet, user.role, session);
+      return policy.reserveEstablished ? policy.reserveAmount : 0;
     }
   } catch (err) {
     // Suppress error in tests or if model is not registered yet

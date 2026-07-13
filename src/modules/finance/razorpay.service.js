@@ -12,6 +12,7 @@ const { applyTransaction } = require('./finance.service');
 const { createNotification } = require('../notifications/notification.service');
 const { getPaginationParams } = require('../../utils/pagination');
 const logger = require('../../utils/logger');
+const { validateTopupAmountForPolicy } = require('./wallet-topup-policy');
 
 let razorpayClient = null;
 
@@ -292,18 +293,7 @@ const createRazorpayOrderService = async (dto, caller) => {
     throw Object.assign(new Error('Wallet is inactive'), { statusCode: 400 });
   }
 
-  const financeRepository = require('./finance.repository');
-  const { SystemConfig } = require('../../constants');
-
-  if (caller.role === UserRole.DISTRIBUTOR || caller.role === UserRole.MERCHANT) {
-    const hasRecharge = await financeRepository.hasCompletedRecharge(activeWallet._id);
-    if (!hasRecharge && amountRupees < SystemConfig.WALLET_MIN_FIRST_TOPUP) {
-      throw Object.assign(
-        new Error(`First wallet top-up must be at least ₹${SystemConfig.WALLET_MIN_FIRST_TOPUP.toLocaleString('en-IN')} (includes ₹${SystemConfig.WALLET_RESERVE_AMOUNT.toLocaleString('en-IN')} mandatory security reserve)`),
-        { statusCode: 400 }
-      );
-    }
-  }
+  await validateTopupAmountForPolicy({ wallet: activeWallet, role: caller.role, amount: amountRupees });
 
   const receipt = `vx_${Date.now()}_${String(caller.userId).slice(-8)}`;
   let order;
