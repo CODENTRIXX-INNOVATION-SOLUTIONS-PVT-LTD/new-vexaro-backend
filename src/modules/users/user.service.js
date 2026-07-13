@@ -339,7 +339,7 @@ const inviteUserService = async (dto, caller) => {
     console.error("Failed to send invite email:", emailErr);
     if (env.NODE_ENV === "development") {
       console.log(
-        `Invite URL: ${env.FRONTEND_URL}/register?token=${rawToken}&email=${encodeURIComponent(userObj.email)}`,
+        `Invite URL: ${env.FRONTEND_URL}/set-password?token=${rawToken}&email=${encodeURIComponent(userObj.email)}`,
       );
     }
   }
