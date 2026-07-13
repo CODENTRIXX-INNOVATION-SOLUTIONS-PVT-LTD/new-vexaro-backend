@@ -10,10 +10,14 @@ const { sendContactEmail } = require('../../utils/email');
 const contactSchema = z.object({
   name: z.string().trim().min(2).max(120),
   email: z.string().trim().email().max(180),
-  phone: z.string().trim().max(30).optional().or(z.literal('')),
+  phone: z.string()
+    .trim()
+    .refine((value) => /^[6-9]\d{9}$/.test(value.replace(/\s/g, '')), 'Valid 10-digit mobile required.')
+    .transform((value) => value.replace(/\s/g, '')),
   company: z.string().trim().max(160).optional().or(z.literal('')),
-  subject: z.string().trim().max(180).optional().or(z.literal('')),
+  subject: z.string().trim().min(1).max(180),
   message: z.string().trim().min(10).max(5000),
+  botField: z.string().trim().max(0, 'Spam detected.').optional().or(z.literal('')),
 });
 
 const router = Router();

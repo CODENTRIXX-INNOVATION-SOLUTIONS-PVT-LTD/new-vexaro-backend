@@ -114,7 +114,9 @@ const bootstrap = async () => {
   server.keepAliveTimeout = 65_000;
   server.headersTimeout = 66_000;
 
-  verifyEmailConfig();
+  if (env.SMTP_VERIFY_ON_STARTUP) {
+    verifyEmailConfig();
+  }
 };
 
 bootstrap().catch((err) => {

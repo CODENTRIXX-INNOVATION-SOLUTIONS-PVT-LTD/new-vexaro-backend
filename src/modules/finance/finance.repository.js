@@ -186,11 +186,21 @@ const findRechargeRequestsPaginated = async (filter, { skip, limit, sort = { cre
   ]);
 };
 
+const RECHARGE_TRANSACTION_TYPES = ['TOPUP', 'TRANSFER_CREDIT'];
+
 /** Update recharge request */
 const hasCompletedRecharge = (walletId, session = null) => {
   const q = Transaction.exists({
     walletId,
-    type: { $in: ['TOPUP', 'TRANSFER_CREDIT'] }
+    type: { $in: RECHARGE_TRANSACTION_TYPES }
+  });
+  return session ? q.session(session) : q;
+};
+
+const countCompletedRecharges = (walletId, session = null) => {
+  const q = Transaction.countDocuments({
+    walletId,
+    type: { $in: RECHARGE_TRANSACTION_TYPES },
   });
   return session ? q.session(session) : q;
 };
@@ -211,6 +221,7 @@ module.exports = {
   findWalletsPaginated,
   aggregateWallets,
   hasCompletedRecharge,
+  countCompletedRecharges,
   // Transaction
   createTransaction,
   findTransaction,
