@@ -14,9 +14,12 @@ concurrency:
 
 jobs:
   deploy:
+    name: Deploy Backend
     runs-on:
       - self-hosted
-      - backend-runner
+      - Linux
+      - X64
+      - backend
 
     defaults:
       run:
@@ -26,7 +29,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Go to Backend Directory
+      - name: Update Backend Code
         run: |
           cd /var/www/vexaro/new-vexaro-backend
           git fetch origin
@@ -37,16 +40,17 @@ jobs:
           cd /var/www/vexaro/new-vexaro-backend
           npm ci
 
-      - name: Restart PM2
+      - name: Restart Backend
         run: |
-          pm2 restart vexaro-backend
+          pm2 reload vexaro-backend
           pm2 save
 
-      - name: Verify PM2
+      - name: Verify PM2 Status
         run: |
           pm2 status
 
-      - name: Health Check
+      - name: Backend Health Check
         run: |
           sleep 10
-          curl -f http://localhost:5000/ || exit 1
+          curl -f http://localhost:5000/health || \
+          curl -f http://localhost:5000 || exit 1
