@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # ==============================================================================
   # MongoDB Replica Set (Required for ACID transactions)
@@ -52,13 +50,12 @@ services:
       context: .
       dockerfile: Dockerfile
       target: production
-    container_name: vexaro-backend
     ports:
-      - "3000:3000"
+      - "${PORT:-3000}:${PORT:-3000}"
     environment:
       # Application
       NODE_ENV: production
-      PORT: 3000
+      PORT: ${PORT:-3000}
       
       # MongoDB (Replica Set)
       MONGODB_URI: mongodb://admin:admin123@mongodb-primary:27017/vexaro?replicaSet=rs0&authSource=admin
@@ -85,8 +82,9 @@ services:
       EMAIL_FROM: ${EMAIL_FROM:-vexarocouriersolution@gmail.com}
       
       # Velocity API
-      VELOCITY_API_KEY: ${VELOCITY_API_KEY}
-      VELOCITY_API_URL: ${VELOCITY_API_URL:-https://api.velocity.in}
+      VELOCITY_USERNAME: ${VELOCITY_USERNAME}
+      VELOCITY_PASSWORD: ${VELOCITY_PASSWORD}
+      VELOCITY_BASE_URL: ${VELOCITY_BASE_URL:-https://shazam.velocity.in/}
       VELOCITY_WEBHOOK_SECRET: ${VELOCITY_WEBHOOK_SECRET}
       
       # Razorpay
@@ -115,7 +113,7 @@ services:
       - vexaro-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/v1/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      test: ["CMD", "node", "-e", "const port = process.env.PORT || 3000; require('http').get('http://localhost:' + port + '/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
       interval: 30s
       timeout: 10s
       retries: 3
