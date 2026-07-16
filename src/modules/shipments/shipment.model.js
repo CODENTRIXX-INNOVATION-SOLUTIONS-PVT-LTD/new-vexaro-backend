@@ -312,11 +312,17 @@ shipmentSchema.pre('save', function () {
   this.billingWeight = Math.max(this.declaredWeight || 0, this.volumetricWeight);
 
   // Derived profits
-  if (this.distributorCost !== undefined && this.carrierCost !== undefined && this.distributorCost !== null && this.carrierCost !== null) {
-    this.vexaroProfit = parseFloat((this.distributorCost - this.carrierCost).toFixed(2));
+  if (this.carrierCost !== undefined && this.carrierCost !== null) {
+    if (this.distributorId && this.distributorCost !== undefined && this.distributorCost !== null) {
+      this.vexaroProfit = parseFloat((this.distributorCost - this.carrierCost).toFixed(2));
+    } else if (this.merchantCost !== undefined && this.merchantCost !== null) {
+      this.vexaroProfit = parseFloat((this.merchantCost - this.carrierCost).toFixed(2));
+    }
   }
-  if (this.merchantCost !== undefined && this.distributorCost !== undefined && this.merchantCost !== null && this.distributorCost !== null) {
+  if (this.distributorId && this.merchantCost !== undefined && this.distributorCost !== undefined && this.merchantCost !== null && this.distributorCost !== null) {
     this.distributorProfit = parseFloat((this.merchantCost - this.distributorCost).toFixed(2));
+  } else {
+    this.distributorProfit = 0;
   }
 });
 

@@ -17,6 +17,9 @@ jest.mock('../../../src/modules/shipments/shipment.model', () => {
 });
 
 jest.mock('../../../src/modules/users/user.repository');
+jest.mock('../../../src/modules/users/user.model', () => ({
+  User: { findOne: jest.fn() },
+}));
 jest.mock('../../../src/utils/transaction', () => ({
   runInTransaction: jest.fn().mockImplementation(async (fn) => fn({})),
 }));
@@ -41,13 +44,15 @@ jest.mock('../../../src/modules/shipments/shared/shipment.helpers', () => ({
 
 const { velocityClient } = require('../../../src/utils/velocity');
 const { Shipment } = require('../../../src/modules/shipments/shipment.model');
+const { User } = require('../../../src/modules/users/user.model');
 const { findShipmentWithAccess } = require('../../../src/modules/shipments/shared/shipment.helpers');
+const { applyTransaction } = require('../../../src/modules/finance/finance.service');
 const { deleteShipmentService } = require('../../../src/modules/shipments/services/shipment-delete.service');
 const {
   reattemptVelocityDeliveryService,
   initiateVelocityRtoService,
 } = require('../../../src/modules/shipments/services/shipment-velocity.service');
-const { ShipmentStatus } = require('../../../src/constants');
+const { ShipmentStatus, TransactionType } = require('../../../src/constants');
 
 describe('Phase 6: Cancellation / NDR / RTO Integration Tests', () => {
   let mockShipment;
@@ -55,6 +60,12 @@ describe('Phase 6: Cancellation / NDR / RTO Integration Tests', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    User.findOne.mockResolvedValue({
+      _id: { toString: () => 'superadmin123' },
+      role: 'SUPER_ADMIN',
+      isActive: true,
+      deletedAt: null,
+    });
     mockShipment = {
       _id: 'ship123',
       awb: 'VX-123456-ABCDEF',
@@ -63,8 +74,11 @@ describe('Phase 6: Cancellation / NDR / RTO Integration Tests', () => {
       statusHistory: [],
       merchantCost: 100,
       distributorCost: 80,
+      vexaroProfit: 20,
+      distributorProfit: 20,
       velocityBooked: true,
       merchantId: 'user123',
+      distributorId: 'dist123',
       destination: {
         addressLine: 'Original Address',
         phone: '9876543210',
@@ -89,6 +103,40 @@ describe('Phase 6: Cancellation / NDR / RTO Integration Tests', () => {
           status: ShipmentStatus.CANCELLED,
           note: expect.stringContaining('Cancellation request submitted'),
         })
+      );
+      expect(applyTransaction).toHaveBeenCalledWith(
+        {},
+        'user123',
+        TransactionType.REFUND,
+        100,
+        expect.objectContaining({
+          reference: 'REFUND-VX-123456-ABCDEF-MERCH',
+        }),
+      );
+      expect(applyTransaction).toHaveBeenCalledWith(
+        {},
+        'superadmin123',
+        TransactionType.DEBIT,
+        80,
+        expect.objectContaining({
+          reference: 'DEBIT-VX-123456-ABCDEF-SUPER-ADMIN-CANCEL',
+        }),
+      );
+      expect(applyTransaction).toHaveBeenCalledWith(
+        {},
+        'dist123',
+        TransactionType.DEBIT,
+        20,
+        expect.objectContaining({
+          reference: 'DEBIT-VX-123456-ABCDEF-DIST-MARGIN-CANCEL',
+        }),
+      );
+      expect(applyTransaction).not.toHaveBeenCalledWith(
+        {},
+        'dist123',
+        TransactionType.REFUND,
+        80,
+        expect.any(Object),
       );
       expect(result.message).toBe('Shipment cancelled successfully.');
     });

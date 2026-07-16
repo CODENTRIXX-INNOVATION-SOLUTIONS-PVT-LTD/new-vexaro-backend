@@ -128,19 +128,22 @@ const rechargeDistributorWalletService = async (dto, caller) => {
  * List commission earnings (scoped by role)
  */
 const listCommissionService = async (query, caller) => {
-  let filter = {};
-  
-  if (caller.role === UserRole.DISTRIBUTOR) {
-    filter = { userId: caller.userId };
-  } else if (caller.role !== UserRole.SUPER_ADMIN) {
+  if (![UserRole.SUPER_ADMIN, UserRole.DISTRIBUTOR].includes(caller.role)) {
     throw Object.assign(new Error('Access denied'), { statusCode: 403 });
   }
 
   const { limit, skip } = getPaginationParams(query, 20);
-  
-  // Commission is not implemented as a separate transaction type
-  // Return empty for now - commission is calculated from shipment margins
-  return { items: [], total: 0 };
+  const filter = {
+    userId: caller.userId,
+    type: { $in: [TransactionType.CREDIT, TransactionType.COD_CREDIT] },
+    $or: [
+      { reference: { $regex: '(SUPER-ADMIN|DIST-MARGIN|COD-MARGIN)', $options: 'i' } },
+      { note: { $regex: '(platform shipment amount|admin margin|distributor margin)', $options: 'i' } },
+    ],
+  };
+
+  const [items, total] = await financeRepository.findTransactionsPaginated(filter, { skip, limit });
+  return { items, total };
 };
 
 /**

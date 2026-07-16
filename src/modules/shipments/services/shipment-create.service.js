@@ -8,6 +8,7 @@ const { del, KEYS } = require('../../../utils/cache');
 const { RateCard } = require('../../rates/rate-card.model');
 const { MarginConfig } = require('../../rates/margin-config.model');
 const { Warehouse } = require('../../users/warehouse.model');
+const { User } = require('../../users/user.model');
 const userRepository = require('../../users/user.repository');
 const { applyTransaction } = require('../../finance/finance.service');
 const { createNotification } = require('../../notifications/notification.service');
@@ -109,6 +110,14 @@ const normalizeOrderItems = (dto, awb) => {
   }
 
   return { orderItems, subTotal, totalDiscount, totalTax };
+};
+
+const getSuperAdminWalletUser = async () => {
+  const superAdmin = await User.findOne({ role: UserRole.SUPER_ADMIN, isActive: true, deletedAt: null });
+  if (!superAdmin) {
+    throw Object.assign(new Error('Active super admin wallet account not found. Shipment cannot be charged safely.'), { statusCode: 500 });
+  }
+  return superAdmin;
 };
 
 
@@ -260,6 +269,10 @@ const createShipmentService = async (dto, caller) => {
       distributorCost = parseFloat((actualCarrierCost * (1 + saMarkup / 100)).toFixed(2));
       merchantCost = distributorCost;
       vexaroProfit = parseFloat((distributorCost - actualCarrierCost).toFixed(2));
+    } else if (rateCard) {
+      const saMarkup = rateCard.superAdminMarkupPercent ?? 25;
+      merchantCost = parseFloat((actualCarrierCost * (1 + saMarkup / 100)).toFixed(2));
+      vexaroProfit = parseFloat((merchantCost - actualCarrierCost).toFixed(2));
     }
 
     pricing = {
@@ -299,7 +312,10 @@ const createShipmentService = async (dto, caller) => {
     });
   }
 
-  // 1. Transaction block for local draft creation and wallet charge
+  const superAdminShare = roundMoney(distributorId ? pricing.distributorCost : pricing.merchantCost);
+  const superAdmin = superAdminShare > 0 ? await getSuperAdminWalletUser() : null;
+
+  // 1. Transaction block for local draft creation and wallet movement
   let shipment;
   try {
     await runInTransaction(async (session) => {
@@ -308,10 +324,17 @@ const createShipmentService = async (dto, caller) => {
         note: `Shipment charge for AWB ${awb}`,
       });
 
-      if (distributorId) {
-        await applyTransaction(session, distributorId, TransactionType.CHARGE, pricing.distributorCost, {
-          reference: `CHARGE-${awb}-DIST`,
-          note: `Shipment charge for AWB ${awb}`,
+      if (superAdmin && superAdminShare > 0) {
+        await applyTransaction(session, superAdmin._id.toString(), TransactionType.CREDIT, superAdminShare, {
+          reference: `CREDIT-${awb}-SUPER-ADMIN`,
+          note: `Platform shipment amount for AWB ${awb}`,
+        });
+      }
+
+      if (distributorId && pricing.distributorProfit > 0) {
+        await applyTransaction(session, distributorId, TransactionType.CREDIT, pricing.distributorProfit, {
+          reference: `CREDIT-${awb}-DIST-MARGIN`,
+          note: `Distributor margin for shipment ${awb}`,
         });
       }
 
@@ -371,7 +394,7 @@ const createShipmentService = async (dto, caller) => {
   } catch (apiErr) {
     console.error(`Velocity API call failed for AWB ${awb}. Rolling back...`, apiErr.message);
 
-    // Compensation: refund wallet charges and set shipment to CANCELLED
+    // Compensation: refund merchant charge, reverse distributor margin credit, and set shipment to CANCELLED
     try {
       await runInTransaction(async (session) => {
         await applyTransaction(session, merchantId, TransactionType.REFUND, pricing.merchantCost, {
@@ -379,10 +402,17 @@ const createShipmentService = async (dto, caller) => {
           note: `Compensation refund for failed carrier booking for AWB ${awb}`,
         });
 
-        if (distributorId) {
-          await applyTransaction(session, distributorId, TransactionType.REFUND, pricing.distributorCost, {
-            reference: `REFUND-${awb}-DIST`,
-            note: `Compensation refund for failed carrier booking for AWB ${awb}`,
+        if (superAdmin && superAdminShare > 0) {
+          await applyTransaction(session, superAdmin._id.toString(), TransactionType.DEBIT, superAdminShare, {
+            reference: `DEBIT-${awb}-SUPER-ADMIN-FAILED`,
+            note: `Platform shipment amount reversal for failed carrier booking for AWB ${awb}`,
+          });
+        }
+
+        if (distributorId && pricing.distributorProfit > 0) {
+          await applyTransaction(session, distributorId, TransactionType.DEBIT, pricing.distributorProfit, {
+            reference: `DEBIT-${awb}-DIST-MARGIN-FAILED`,
+            note: `Distributor margin reversal for failed carrier booking for AWB ${awb}`,
           });
         }
 

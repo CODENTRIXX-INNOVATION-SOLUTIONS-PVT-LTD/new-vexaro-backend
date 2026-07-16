@@ -265,7 +265,11 @@ const _handleCodOnDelivery = async (shipment) => {
   const shippingCost = shipment.merchantCost || 0;
   const vexaroMargin = shipment.vexaroProfit || 0;
   const distributorMargin = shipment.distributorProfit || 0;
-  const netToMerchant = shipment.codAmount - shippingCost;
+  const bookingSettlement = await financeRepository.findTransaction({
+    reference: `CREDIT-${shipment.awb}-SUPER-ADMIN`,
+  });
+  const shippingSettledAtBooking = Boolean(bookingSettlement);
+  const netToMerchant = shippingSettledAtBooking ? shipment.codAmount : shipment.codAmount - shippingCost;
 
   if (netToMerchant < 0) {
     logger.error('webhook_cod_amount_less_than_shipping', {
@@ -291,7 +295,7 @@ const _handleCodOnDelivery = async (shipment) => {
 
     const cod = codRecord[0];
 
-    // Credit merchant with net amount (COD - shipping cost)
+    // Credit merchant with COD amount. New shipments already settle shipping at booking.
     await applyTransaction(session, shipment.merchantId.toString(), TransactionType.COD_CREDIT, netToMerchant, {
       shipmentId:  shipment._id,
       performedBy: null,
@@ -300,7 +304,7 @@ const _handleCodOnDelivery = async (shipment) => {
     });
 
     // Credit Vexaro margin (admin margin) to super-admin wallet
-    if (vexaroMargin > 0) {
+    if (!shippingSettledAtBooking && vexaroMargin > 0) {
       const { User } = require('../../users/user.model');
       const superAdmin = await User.findOne({ role: 'SUPER_ADMIN', isActive: true, deletedAt: null });
       if (superAdmin) {
@@ -314,7 +318,7 @@ const _handleCodOnDelivery = async (shipment) => {
     }
 
     // Credit Distributor with distributor margin
-    if (distributorMargin > 0 && shipment.distributorId) {
+    if (!shippingSettledAtBooking && distributorMargin > 0 && shipment.distributorId) {
       await applyTransaction(session, shipment.distributorId.toString(), TransactionType.COD_CREDIT, distributorMargin, {
         shipmentId:  shipment._id,
         performedBy: null,

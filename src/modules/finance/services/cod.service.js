@@ -41,18 +41,23 @@ const remitCODService = async (codId, dto, caller) => {
   const shipment = await shipmentRepository.findById(cod.shipmentId);
   if (!shipment) throw Object.assign(new Error('Associated shipment not found'), { statusCode: 404 });
 
+  const bookingSettlement = await financeRepository.findTransaction({
+    reference: `CREDIT-${shipment.awb}-SUPER-ADMIN`,
+  });
+  const shippingSettledAtBooking = Boolean(bookingSettlement);
+
   // Calculate revenue distribution
   const shippingCost = shipment.merchantCost || 0;
   const vexaroMargin = shipment.vexaroProfit || 0;
   const distributorMargin = shipment.distributorProfit || 0;
-  const netToMerchant = cod.codAmount - shippingCost;
+  const netToMerchant = shippingSettledAtBooking ? cod.codAmount : cod.codAmount - shippingCost;
 
   if (netToMerchant < 0) {
     throw Object.assign(new Error('COD amount is less than shipping cost'), { statusCode: 400 });
   }
 
   return runInTransaction(async (session) => {
-    // Credit merchant with net amount (COD - shipping cost)
+    // Credit merchant with COD amount. New shipments already settle shipping at booking.
     await applyTransaction(session, cod.merchantId.toString(), TransactionType.COD_CREDIT, netToMerchant, {
       shipmentId:  cod.shipmentId,
       performedBy: caller.userId,
@@ -61,7 +66,7 @@ const remitCODService = async (codId, dto, caller) => {
     });
 
     // Credit Vexaro margin (admin margin) to super-admin wallet
-    if (vexaroMargin > 0) {
+    if (!shippingSettledAtBooking && vexaroMargin > 0) {
       const { User } = require('../../users/user.model');
       const superAdmin = await User.findOne({ role: 'SUPER_ADMIN', isActive: true, deletedAt: null });
       if (superAdmin) {
@@ -75,7 +80,7 @@ const remitCODService = async (codId, dto, caller) => {
     }
 
     // Credit Distributor with distributor margin
-    if (distributorMargin > 0 && cod.distributorId) {
+    if (!shippingSettledAtBooking && distributorMargin > 0 && cod.distributorId) {
       await applyTransaction(session, cod.distributorId.toString(), TransactionType.COD_CREDIT, distributorMargin, {
         shipmentId:  cod.shipmentId,
         performedBy: caller.userId,

@@ -227,13 +227,16 @@ describe('calculateShippingCost – without distributorId', () => {
     expect(result.distributorCost).toBe(result.carrierCost);
   });
 
-  test('vexaroProfit is 0 when no distributorId (direct merchant)', () => {
+  test('vexaroProfit is merchant markup when no distributorId (direct merchant)', () => {
     const rateCard = makeRateCard({ fuelSurcharge: 0, codCharge: 0, codPercent: 0 });
     const result = calculateShippingCost({
       rateCard,
       declaredWeight: 1,
     });
-    expect(result.vexaroProfit).toBe(0);
+    expect(result.vexaroProfit).toBe(
+      parseFloat((result.merchantCost - result.carrierCost).toFixed(2))
+    );
+    expect(result.distributorProfit).toBe(0);
   });
 });
 

@@ -19,6 +19,9 @@ jest.mock('../../../src/modules/users/user.repository');
 jest.mock('../../../src/modules/users/warehouse.model', () => ({
   Warehouse: { findById: jest.fn(), findOne: jest.fn() },
 }));
+jest.mock('../../../src/modules/users/user.model', () => ({
+  User: { findOne: jest.fn() },
+}));
 jest.mock('../../../src/modules/rates/rate-card.model', () => ({
   RateCard: { findOne: jest.fn() },
 }));
@@ -69,14 +72,19 @@ jest.mock('../../../src/modules/audit/audit.service', () => ({
 const addressBookRepository = require('../../../src/modules/users/address-book.repository');
 const { markAddressUsedService } = require('../../../src/modules/users/address-book.service');
 const userRepository = require('../../../src/modules/users/user.repository');
+const { User } = require('../../../src/modules/users/user.model');
 const { Warehouse } = require('../../../src/modules/users/warehouse.model');
 const { RateCard } = require('../../../src/modules/rates/rate-card.model');
 const { Shipment } = require('../../../src/modules/shipments/shipment.model');
+const { applyTransaction } = require('../../../src/modules/finance/finance.service');
+const { TransactionType } = require('../../../src/constants');
 
 const { createShipmentService } = require('../../../src/modules/shipments/services/shipment-create.service');
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 const MERCHANT_ID  = '507f1f77bcf86cd799439011';
+const DISTRIBUTOR_ID = '507f1f77bcf86cd799439012';
+const SUPER_ADMIN_ID = '507f1f77bcf86cd799439013';
 const ADDRESS_ID_O = '507f1f77bcf86cd799439020';
 const ADDRESS_ID_D = '507f1f77bcf86cd799439021';
 const SHIPMENT_ID  = '507f1f77bcf86cd799439030';
@@ -111,6 +119,12 @@ beforeEach(() => {
   jest.clearAllMocks();
 
   userRepository.findOne.mockResolvedValue(mockMerchant);
+  User.findOne.mockResolvedValue({
+    _id: { toString: () => SUPER_ADMIN_ID },
+    role: 'SUPER_ADMIN',
+    isActive: true,
+    deletedAt: null,
+  });
   Warehouse.findOne.mockResolvedValue(mockWarehouse);
   Warehouse.findById.mockResolvedValue(mockWarehouse);
   RateCard.findOne.mockResolvedValue(mockRateCard);
@@ -136,6 +150,57 @@ describe('backward compatibility (no address book IDs)', () => {
     expect(result).toBeDefined();
     expect(addressBookRepository.findById).not.toHaveBeenCalled();
     expect(markAddressUsedService).not.toHaveBeenCalled();
+  });
+
+  test('credits super admin share and distributor margin instead of debiting distributor cost', async () => {
+    userRepository.findOne.mockResolvedValueOnce({
+      ...mockMerchant,
+      invitedBy: { toString: () => DISTRIBUTOR_ID },
+    });
+
+    const dto = {
+      destination: { name: 'Customer', phone: '9111111111', addressLine: '1 Customer Ln', city: 'Pune', state: 'Maharashtra', pincode: '411001' },
+      weight: 2,
+    };
+
+    await createShipmentService(dto, callerMerchant);
+
+    expect(applyTransaction).toHaveBeenCalledWith(
+      {},
+      MERCHANT_ID,
+      TransactionType.CHARGE,
+      100,
+      expect.objectContaining({
+        reference: 'CHARGE-VX-TEST-001-MERCH',
+      }),
+    );
+    expect(applyTransaction).toHaveBeenCalledWith(
+      {},
+      SUPER_ADMIN_ID,
+      TransactionType.CREDIT,
+      80,
+      expect.objectContaining({
+        reference: 'CREDIT-VX-TEST-001-SUPER-ADMIN',
+        note: expect.stringContaining('Platform shipment amount'),
+      }),
+    );
+    expect(applyTransaction).toHaveBeenCalledWith(
+      {},
+      DISTRIBUTOR_ID,
+      TransactionType.CREDIT,
+      20,
+      expect.objectContaining({
+        reference: 'CREDIT-VX-TEST-001-DIST-MARGIN',
+        note: expect.stringContaining('Distributor margin'),
+      }),
+    );
+    expect(applyTransaction).not.toHaveBeenCalledWith(
+      {},
+      DISTRIBUTOR_ID,
+      TransactionType.CHARGE,
+      80,
+      expect.any(Object),
+    );
   });
 });
 

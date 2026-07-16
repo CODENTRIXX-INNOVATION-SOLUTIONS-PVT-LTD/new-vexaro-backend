@@ -4,7 +4,7 @@ const { Shipment } = require('../shipments/shipment.model');
 const { User } = require('../users/user.model');
 const { Wallet, Transaction } = require('../finance/finance.model');
 const { COD } = require('../finance/finance.model');
-const { UserRole, ShipmentStatus } = require('../../constants');
+const { UserRole, ShipmentStatus, PaymentStatus } = require('../../constants');
 
 /**
  * Super Admin Report Service
@@ -273,8 +273,20 @@ const getTopRevenueMerchantsService = async (query, user) => {
 };
 
 const getRevenueByPaymentMethodService = async (user) => {
-  // This would need payment method data - placeholder for now
-  return { paymentMethods: [] };
+  const { Payment } = require('../finance/payment.model');
+  const paymentMethods = await Payment.aggregate([
+    { $match: { status: PaymentStatus.SUCCESS } },
+    {
+      $group: {
+        _id: { $ifNull: ['$paymentMethod', 'unknown'] },
+        totalAmount: { $sum: '$amountRupees' },
+        count: { $sum: 1 },
+      },
+    },
+    { $sort: { totalAmount: -1 } },
+  ]);
+
+  return { paymentMethods };
 };
 
 const getRecentRevenueTransactionsService = async (query, user) => {
@@ -354,7 +366,7 @@ const getTopMerchantsService = async (query, user) => {
 };
 
 const getMerchantsByCategoryService = async (user) => {
-  // Placeholder - would need category data in user model
+  // Merchant category is not currently stored on user records.
   return { categories: [] };
 };
 
@@ -401,7 +413,7 @@ const getMerchantGrowthService = async (query, user) => {
 };
 
 const getMerchantCategoryDistributionService = async (user) => {
-  // Placeholder - would need category data
+  // Merchant category is not currently stored on user records.
   return { distribution: [] };
 };
 
@@ -454,8 +466,37 @@ const getTopDistributorsService = async (query, user) => {
 };
 
 const getRegionalPerformanceService = async (user) => {
-  // Placeholder - would need region/state data
-  return { regionalPerformance: [] };
+  const regionalPerformance = await Shipment.aggregate([
+    { $match: { deletedAt: null, 'destination.state': { $nin: [null, ''] } } },
+    {
+      $group: {
+        _id: { $trim: { input: '$destination.state' } },
+        totalShipments: { $sum: 1 },
+        deliveredShipments: { $sum: { $cond: [{ $eq: ['$status', ShipmentStatus.DELIVERED] }, 1, 0] } },
+        rtoShipments: { $sum: { $cond: [{ $eq: ['$status', ShipmentStatus.RTO] }, 1, 0] } },
+        totalRevenue: { $sum: '$merchantCost' },
+      },
+    },
+    {
+      $project: {
+        state: '$_id',
+        totalShipments: 1,
+        deliveredShipments: 1,
+        rtoShipments: 1,
+        totalRevenue: 1,
+        deliveryRate: {
+          $cond: [
+            { $eq: ['$totalShipments', 0] },
+            0,
+            { $multiply: [{ $divide: ['$deliveredShipments', '$totalShipments'] }, 100] },
+          ],
+        },
+      },
+    },
+    { $sort: { totalShipments: -1 } },
+  ]);
+
+  return { regionalPerformance };
 };
 
 const getDistributorActivitiesService = async (query, user) => {

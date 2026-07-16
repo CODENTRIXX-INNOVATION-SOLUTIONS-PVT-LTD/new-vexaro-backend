@@ -7,6 +7,7 @@ const { velocityClient } = require('../../../utils/velocity');
 const { applyTransaction } = require('../../finance/finance.service');
 const { createNotification } = require('../../notifications/notification.service');
 const { del, KEYS } = require('../../../utils/cache');
+const { User } = require('../../users/user.model');
 
 const { logAuditEvent } = require('../../audit/audit.service');
 
@@ -14,6 +15,16 @@ const toIdString = (value) => {
   if (!value) return '';
   if (value._id) return value._id.toString();
   return value.toString();
+};
+
+const roundMoney = (value) => Math.round(Number(value || 0) * 100) / 100;
+
+const getSuperAdminWalletUser = async () => {
+  const superAdmin = await User.findOne({ role: 'SUPER_ADMIN', isActive: true, deletedAt: null });
+  if (!superAdmin) {
+    throw Object.assign(new Error('Active super admin wallet account not found. Shipment cannot be reversed safely.'), { statusCode: 500 });
+  }
+  return superAdmin;
 };
 
 const performCancellation = async (shipment, caller, session, velocityResult = null) => {
@@ -34,14 +45,25 @@ const performCancellation = async (shipment, caller, session, velocityResult = n
     });
   }
 
-  // Refund distributor
-  if (shipment.distributorId && shipment.distributorCost > 0) {
-    const distributorIdStr = toIdString(shipment.distributorId);
-    await applyTransaction(session, distributorIdStr, TransactionType.REFUND, shipment.distributorCost, {
-      reference: `${ref}-DIST`,
+  const superAdminShare = roundMoney(shipment.distributorId ? shipment.distributorCost : shipment.merchantCost);
+  if (superAdminShare > 0) {
+    const superAdmin = await getSuperAdminWalletUser();
+    await applyTransaction(session, superAdmin._id.toString(), TransactionType.DEBIT, superAdminShare, {
+      reference: `DEBIT-${shipment.awb}-SUPER-ADMIN-CANCEL`,
       shipmentId: shipment._id,
       performedBy: caller.userId,
-      note: `Shipping refund for cancelled shipment ${shipment.awb}`,
+      note: `Platform shipment amount reversal for cancelled shipment ${shipment.awb}`,
+    });
+  }
+
+  // Reverse distributor margin that was credited when the shipment was booked.
+  if (shipment.distributorId && shipment.distributorProfit > 0) {
+    const distributorIdStr = toIdString(shipment.distributorId);
+    await applyTransaction(session, distributorIdStr, TransactionType.DEBIT, shipment.distributorProfit, {
+      reference: `DEBIT-${shipment.awb}-DIST-MARGIN-CANCEL`,
+      shipmentId: shipment._id,
+      performedBy: caller.userId,
+      note: `Distributor margin reversal for cancelled shipment ${shipment.awb}`,
     });
   }
 

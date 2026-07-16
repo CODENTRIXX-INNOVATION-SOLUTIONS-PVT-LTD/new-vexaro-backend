@@ -67,8 +67,12 @@ const calculateShippingCost = (params) => {
     merchantCost = parseFloat((carrierCost * (1 + saMarkup / 100)).toFixed(2));
   }
 
-  const vexaroProfit = parseFloat((distributorCost - carrierCost).toFixed(2));
-  const distributorProfit = parseFloat((merchantCost - distributorCost).toFixed(2));
+  const vexaroProfit = distributorId
+    ? parseFloat((distributorCost - carrierCost).toFixed(2))
+    : parseFloat((merchantCost - carrierCost).toFixed(2));
+  const distributorProfit = distributorId
+    ? parseFloat((merchantCost - distributorCost).toFixed(2))
+    : 0;
 
   return {
     volumetricWeight,

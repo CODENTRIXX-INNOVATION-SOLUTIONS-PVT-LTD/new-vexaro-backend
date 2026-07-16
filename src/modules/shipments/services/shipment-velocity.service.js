@@ -207,6 +207,10 @@ const getVelocityRatesService = async (dto, caller) => {
           distributorCost = parseFloat((carrierCost * (1 + saMarkup / 100)).toFixed(2));
           merchantCost = distributorCost;
           vexaroProfit = parseFloat((distributorCost - carrierCost).toFixed(2));
+        } else if (rateCard) {
+          const saMarkup = rateCard.superAdminMarkupPercent ?? 25;
+          merchantCost = parseFloat((carrierCost * (1 + saMarkup / 100)).toFixed(2));
+          vexaroProfit = parseFloat((merchantCost - carrierCost).toFixed(2));
         }
 
         return {
