@@ -49,6 +49,11 @@ const statusTransitionSchema = z.object({ from: z.enum(Object.values(ShipmentSta
 const shipmentIdParamsSchema = z.object({ id: objectIdSchema });
 const awbParamsSchema = z.object({ awb: z.string().trim().min(6).max(64).regex(/^[A-Za-z0-9_-]+$/).transform((v) => v.toUpperCase()) });
 const bulkJobParamsSchema = z.object({ jobId: z.string().trim().regex(/^BULK-\d+-[a-f\d]{8}$/i) });
+const pincodeLocationSchema = z.object({
+  pincode: z.string().trim().regex(/^[1-9]\d{5}$/, 'Enter a valid 6-digit Indian pincode'),
+  state: z.string().trim().min(1).max(100),
+  city: z.string().trim().min(1).max(100),
+});
 
 module.exports = {
   ...legacy,
@@ -56,6 +61,7 @@ module.exports = {
   shipmentIdParamsSchema,
   awbParamsSchema,
   bulkJobParamsSchema,
+  pincodeLocationSchema,
   STATUS_TRANSITIONS,
   statusTransitionSchema,
   isShipmentStatusTransitionAllowed,

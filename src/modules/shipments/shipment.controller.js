@@ -16,6 +16,7 @@ const {
   listVelocityForwardShipmentsService,
   listVelocityReturnShipmentsService,
   createReverseShipmentService,
+  validatePincodeLocationService,
 } = require('./shipment.service');
 const { BulkJob } = require('./bulk-job.model');
 const { REQUIRED_CSV_COLS, REQUIRED_CSV_ONE_OF_COLS } = require('./shared/shipment.constants');
@@ -298,6 +299,15 @@ const checkServiceability = withErrorHandling(async (req, res) => {
   success(res, 'Serviceability checked successfully', result);
 });
 
+const validatePincodeLocation = withErrorHandling(async (req, res) => {
+  const result = await validatePincodeLocationService(req.validated.body);
+  success(
+    res,
+    result.isValid ? 'Pincode verified successfully' : 'Pincode does not match selected location',
+    result,
+  );
+});
+
 // ─── POST /api/shipments/velocity-rates ───────────────────────────────────────
 const getVelocityRates = withErrorHandling(async (req, res) => {
   const dto = req.validated.body;
@@ -344,6 +354,7 @@ module.exports = {
   bulkUpload,
   getBulkUploadStatus,
   checkServiceability,
+  validatePincodeLocation,
   getVelocityRates,
   reattemptVelocityDelivery,
   initiateVelocityRto,

@@ -12,6 +12,7 @@ const {
   bulkUpload,
   getBulkUploadStatus,
   checkServiceability,
+  validatePincodeLocation,
   getVelocityRates,
   reattemptVelocityDelivery,
   initiateVelocityRto,
@@ -63,6 +64,9 @@ router.post(
 router.get('/bulk-status/:jobId', validateRequest({ params: schemas.bulkJobParamsSchema }), getBulkUploadStatus);
 // POST /api/shipments/serviceability — live Velocity route check
 router.post('/serviceability', validateRequest({ body: schemas.serviceabilitySchema }), checkServiceability);
+
+// POST /api/shipments/pincode/validate - verify receiver pincode against selected state/city
+router.post('/pincode/validate', validateRequest({ body: schemas.pincodeLocationSchema }), validatePincodeLocation);
 
 // POST /api/shipments/velocity-rates — live Velocity rate quote
 router.post('/velocity-rates', validateRequest({ body: schemas.velocityRatesSchema }), getVelocityRates);

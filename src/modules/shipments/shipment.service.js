@@ -19,6 +19,7 @@ const {
 } = require('./services/shipment-velocity.service');
 const { createReverseShipmentService } = require('./services/shipment-reverse.service');
 const { updateShipmentStatusFromVelocityWebhook } = require('./services/shipment-webhook.service');
+const { validatePincodeLocationService } = require('./services/shipment-pincode.service');
 
 const getShipmentByIdService = async (shipmentId, caller) => {
   return findShipmentWithAccess(shipmentId, caller);
@@ -43,4 +44,5 @@ module.exports = {
   listVelocityReturnShipmentsService,
   createReverseShipmentService,
   updateShipmentStatusFromVelocityWebhook,
+  validatePincodeLocationService,
 };
