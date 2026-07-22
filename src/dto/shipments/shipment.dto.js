@@ -63,6 +63,7 @@ const createShipmentSchema = z.object({
 
   carrierId: z.string().trim().optional(),
   carrierCost: z.number().min(0).optional(),
+  merchantMarkup: z.number().min(0, 'Merchant markup cannot be negative').max(1000000, 'Merchant markup is too large').multipleOf(0.01, 'Merchant markup can have at most two decimal places').optional().default(0),
 }).superRefine((data, ctx) => {
   const hasSingleItem = Boolean(data.productName || data.sku || data.quantity || data.sellingPrice !== undefined);
   if (hasSingleItem) {

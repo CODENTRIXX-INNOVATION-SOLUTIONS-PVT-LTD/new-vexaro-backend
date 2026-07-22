@@ -3,6 +3,7 @@
 const { Shipment } = require('../shipment.model');
 const { buildShipmentFilter } = require('../shared/shipment.helpers');
 const { getPaginationParams } = require('../../../utils/pagination');
+const { syncListedShipmentsFromVelocity } = require('./shipment-velocity-sync.service');
 
 const listShipmentsService = async (query, caller) => {
   const filter = buildShipmentFilter(caller, query);
@@ -19,6 +20,8 @@ const listShipmentsService = async (query, caller) => {
       .lean(),
     Shipment.countDocuments(filter),
   ]);
+
+  await syncListedShipmentsFromVelocity(shipments);
 
   return {
     items: shipments,

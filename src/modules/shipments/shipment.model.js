@@ -129,6 +129,10 @@ const shipmentSchema = new mongoose.Schema(
     vexaroProfit:     { type: Number, default: 0 },
     distributorProfit:{ type: Number, default: 0 },
 
+    // Private merchant-controlled customer billing value. Hidden from normal
+    // queries so admin and distributor shipment responses cannot expose it.
+    merchantMarkup: { type: Number, default: 0, min: 0, select: false },
+
     // ── Service details ─────────────────────────────────────────────────────
     serviceType: {
       type:    String,
