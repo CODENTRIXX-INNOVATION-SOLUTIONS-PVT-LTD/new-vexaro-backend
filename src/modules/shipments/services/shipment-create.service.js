@@ -122,6 +122,11 @@ const getSuperAdminWalletUser = async () => {
 
 
 const createShipmentService = async (dto, caller) => {
+  const merchantMarkup = roundMoney(dto.merchantMarkup || 0);
+  if (merchantMarkup > 0 && caller.role !== UserRole.MERCHANT) {
+    throw Object.assign(new Error('Only a merchant can add a private customer-bill markup.'), { statusCode: 403 });
+  }
+
   let merchantId;
   if (caller.role === UserRole.MERCHANT) {
     merchantId = caller.userId;
@@ -357,6 +362,7 @@ const createShipmentService = async (dto, caller) => {
         merchantCost:     pricing.merchantCost,
         vexaroProfit:     pricing.vexaroProfit,
         distributorProfit: pricing.distributorProfit,
+        merchantMarkup,
         declaredValue,
         isCOD,
         codAmount,

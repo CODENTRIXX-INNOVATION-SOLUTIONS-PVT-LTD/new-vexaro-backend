@@ -13,14 +13,29 @@ const roundMoney = (value) => Math.round(Number(value || 0) * 100) / 100;
 
 const buildForwardOrderItems = (shipment) => {
   const items = Array.isArray(shipment.orderItems) ? shipment.orderItems : [];
-  return items.map((item) => ({
-    name:          item.productName,
-    sku:           item.sku,
-    units:         item.quantity,
-    selling_price: roundMoney(item.sellingPrice),
-    discount:      roundMoney(item.discount),
-    tax:           roundMoney(item.tax),
-  }));
+  return items.map((item) => {
+    const units = Number(item.quantity || 1);
+    const sellingPrice = roundMoney(item.sellingPrice);
+    const discount = roundMoney(item.discount);
+    const taxAmount = roundMoney(item.tax);
+    const taxableAmount = roundMoney((sellingPrice * units) - discount);
+
+    // Vexaro stores tax as a currency amount, while Velocity expects this
+    // field as a percentage. Convert only at the integration boundary so the
+    // Velocity label total matches our stored order subtotal.
+    const taxPercent = taxableAmount > 0
+      ? Math.round(((taxAmount / taxableAmount) * 100) * 10000) / 10000
+      : 0;
+
+    return {
+      name:          item.productName,
+      sku:           item.sku,
+      units,
+      selling_price: sellingPrice,
+      discount,
+      tax:           taxPercent,
+    };
+  });
 };
 
 const sumItemField = (items, field) => {

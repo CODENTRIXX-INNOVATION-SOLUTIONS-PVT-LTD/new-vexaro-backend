@@ -24,6 +24,7 @@ const { success, created, paginated } = require('../../utils');
 const { wrapController } = require('../../utils/errors');
 const { getPaginationParams, buildPaginationMeta } = require('../../utils/pagination');
 const { parse } = require('csv-parse/sync');
+const { generateCustomerBillService, getCustomerBillSummaryService } = require('./services/customer-bill.service');
 
 // ─── Multer: memory storage for CSV upload ────────────────────────────────────
 // Store file in memory (buffer) — no disk writes needed for CSV parsing.
@@ -117,6 +118,19 @@ const trackByAWB = withErrorHandling(async (req, res) => {
 const getShipmentById = withErrorHandling(async (req, res) => {
   const shipment = await getShipmentByIdService(req.params.id, req.user);
   success(res, 'Shipment retrieved successfully', shipment);
+});
+
+const downloadCustomerBill = withErrorHandling(async (req, res) => {
+  const { buffer, filename } = await generateCustomerBillService(req.validated.params.id, req.user);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.send(buffer);
+});
+
+const getCustomerBillSummary = withErrorHandling(async (req, res) => {
+  const summary = await getCustomerBillSummaryService(req.validated.params.id, req.user);
+  success(res, 'Private customer bill summary retrieved', summary);
 });
 
 // ─── PATCH /api/shipments/:id ─────────────────────────────────────────────────
@@ -361,4 +375,6 @@ module.exports = {
   listVelocityForwardShipments,
   listVelocityReturnShipments,
   createReverseShipment,
+  downloadCustomerBill,
+  getCustomerBillSummary,
 };

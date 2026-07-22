@@ -19,6 +19,8 @@ const {
   listVelocityForwardShipments,
   listVelocityReturnShipments,
   createReverseShipment,
+  downloadCustomerBill,
+  getCustomerBillSummary,
 } = require('./shipment.controller');
 const { UserRole } = require('../../constants');
 const { validateRequest } = require('../../validation');
@@ -127,6 +129,20 @@ router.post(
 // ─────────────────────────────────────────────────────────────────────────────
 
 // GET    /api/shipments/:id          — get single shipment
+router.get(
+  '/:id/customer-bill',
+  requireRole(UserRole.MERCHANT),
+  validateRequest({ params: schemas.shipmentIdParamsSchema }),
+  downloadCustomerBill,
+);
+
+router.get(
+  '/:id/customer-bill-summary',
+  requireRole(UserRole.MERCHANT),
+  validateRequest({ params: schemas.shipmentIdParamsSchema }),
+  getCustomerBillSummary,
+);
+
 router.get('/:id', validateRequest({ params: schemas.shipmentIdParamsSchema }), getShipmentById);
 
 // PATCH  /api/shipments/:id          — update non-status fields
