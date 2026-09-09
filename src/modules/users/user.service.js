@@ -1,5 +1,8 @@
 'use strict';
 
+const mongoose = require('mongoose');
+const { User } = require("./user.model");
+const { RefreshToken } = require("../auth/refresh-token.model");
 const userRepository = require("./user.repository");
 const warehouseRepository = require("./warehouse.repository");
 const { UserRole } = require("../../constants");
@@ -415,7 +418,6 @@ const deactivateUserService = async (id, caller) => {
   user.deletedAt = deletedAt;
 
   // Revoke all refresh tokens for this user
-  const { RefreshToken } = require("../auth/refresh-token.model");
   let revokedUserIds = [user._id];
   if (user.role === UserRole.DISTRIBUTOR) {
     const merchants = await userRepository.findAll(
@@ -612,6 +614,60 @@ const syncWarehouseToVelocityService = async (merchantId, caller) => {
   };
 };
 
+// ─── PATCH /api/users/:id/status ─────────────────────────────────────────────────────
+const updateUserStatusService = async (id, { isActive }, caller) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const user = await userRepository.findOne({ _id: id, deletedAt: null });
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Prevent self-status change
+    if (caller.userId === id) {
+      throw new Error('You cannot change your own account status');
+    }
+
+    // Only Super Admin can change status
+    if (caller.role !== UserRole.SUPER_ADMIN) {
+      throw new Error('Only Super Admin can change user status');
+    }
+
+    user.isActive = isActive;
+    await userRepository.save(user, { session });
+
+    // If deactivating, revoke all tokens
+    if (!isActive) {
+      await RefreshToken.deleteMany({ userId: id }).session(session);
+      logger.info('user_status_changed_tokens_revoked', {
+        userId: id,
+        email: user.email,
+        role: user.role,
+        newStatus: 'inactive',
+        changedBy: caller.email,
+      });
+    } else {
+      logger.info('user_status_changed', {
+        userId: id,
+        email: user.email,
+        role: user.role,
+        newStatus: 'active',
+        changedBy: caller.email,
+      });
+    }
+
+    await session.commitTransaction();
+    return { message: `User ${isActive ? 'activated' : 'deactivated'} successfully` };
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
+  }
+};
+
 module.exports = {
   inviteUserService,
   listUsersService,
@@ -623,4 +679,5 @@ module.exports = {
   getWarehouseService,
   updateWarehouseService,
   syncWarehouseToVelocityService,
+  updateUserStatusService,
 };

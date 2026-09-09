@@ -14,6 +14,7 @@ const {
   reactivateUser,
   getWarehouse,
   updateWarehouse,
+  updateUserStatus,
 } = require('./user.controller');
 const {
   createAddress,
@@ -737,6 +738,9 @@ router.post('/:id/resend-invite', validateRequest({ params: schemas.userIdParams
 
 // PATCH  /api/users/:id/reactivate — reactivate a user account
 router.patch('/:id/reactivate', validateRequest({ params: schemas.userIdParamsSchema, body: emptyObjectSchema }), reactivateUser);
+
+// PATCH  /api/users/:id/status — update user status (activate/deactivate)
+router.patch('/:id/status', requireRole(UserRole.SUPER_ADMIN), validateRequest({ params: schemas.userIdParamsSchema, body: schemas.updateUserStatusSchema }), updateUserStatus);
 
 // POST /api/users/:id/sync-warehouse — Super Admin re-syncs a merchant warehouse to Velocity
 router.post(
