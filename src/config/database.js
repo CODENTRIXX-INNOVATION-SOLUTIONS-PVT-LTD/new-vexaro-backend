@@ -11,7 +11,6 @@ const connectDB = async () => {
       heartbeatFrequencyMS: 10_000,
       connectTimeoutMS: 10_000,
       autoIndex: false,   // never auto-sync indexes in production — use scripts/create-indexes.js
-      retryWrites: false,   // disable retryable writes for MongoDB deployments that don't support them
     });
     console.log(`✅ MongoDB connected: ${conn.connection.host}`);
   } catch (error) {
