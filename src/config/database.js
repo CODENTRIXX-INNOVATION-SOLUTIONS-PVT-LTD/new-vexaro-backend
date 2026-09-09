@@ -7,10 +7,11 @@ const connectDB = async () => {
       maxPoolSize: env.MONGODB_POOL_SIZE,
       minPoolSize: Math.max(2, Math.floor(env.MONGODB_POOL_SIZE / 5)),
       serverSelectionTimeoutMS: 5_000,
-      socketTimeoutMS:         45_000,
-      heartbeatFrequencyMS:    10_000,
-      connectTimeoutMS:        10_000,
-      autoIndex:               false,   // never auto-sync indexes in production — use scripts/create-indexes.js
+      socketTimeoutMS: 45_000,
+      heartbeatFrequencyMS: 10_000,
+      connectTimeoutMS: 10_000,
+      autoIndex: false,   // never auto-sync indexes in production — use scripts/create-indexes.js
+      retryWrites: false,   // disable retryable writes for MongoDB deployments that don't support them
     });
     console.log(`✅ MongoDB connected: ${conn.connection.host}`);
   } catch (error) {
@@ -44,5 +45,5 @@ const gracefulShutdown = async (signal) => {
   process.exit(0);
 };
 
-process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
