@@ -616,56 +616,52 @@ const syncWarehouseToVelocityService = async (merchantId, caller) => {
 
 // ─── PATCH /api/users/:id/status ─────────────────────────────────────────────────────
 const updateUserStatusService = async (id, { isActive }, caller) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    const user = await userRepository.findOne({ _id: id, deletedAt: null });
-    if (!user) {
-      throw new Error('User not found');
-    }
-
-    // Prevent self-status change
-    if (caller.userId === id) {
-      throw new Error('You cannot change your own account status');
-    }
-
-    // Only Super Admin can change status
-    if (caller.role !== UserRole.SUPER_ADMIN) {
-      throw new Error('Only Super Admin can change user status');
-    }
-
-    user.isActive = isActive;
-    await userRepository.save(user, { session });
-
-    // If deactivating, revoke all tokens
-    if (!isActive) {
-      await RefreshToken.deleteMany({ userId: id }).session(session);
-      logger.info('user_status_changed_tokens_revoked', {
-        userId: id,
-        email: user.email,
-        role: user.role,
-        newStatus: 'inactive',
-        changedBy: caller.email,
-      });
-    } else {
-      logger.info('user_status_changed', {
-        userId: id,
-        email: user.email,
-        role: user.role,
-        newStatus: 'active',
-        changedBy: caller.email,
-      });
-    }
-
-    await session.commitTransaction();
-    return { message: `User ${isActive ? 'activated' : 'deactivated'} successfully` };
-  } catch (error) {
-    await session.abortTransaction();
-    throw error;
-  } finally {
-    session.endSession();
+  const user = await userRepository.findOne({ _id: id, deletedAt: null });
+  if (!user) {
+    throw new Error('User not found');
   }
+
+  // Prevent self-status change
+  if (caller.userId === id) {
+    throw new Error('You cannot change your own account status');
+  }
+
+  // Only Super Admin can change status
+  if (caller.role !== UserRole.SUPER_ADMIN) {
+    throw new Error('Only Super Admin can change user status');
+  }
+
+  user.isActive = isActive;
+  await userRepository.save(user);
+
+  // If deactivating, revoke all tokens (non-critical, can fail independently)
+  if (!isActive) {
+    try {
+      await RefreshToken.deleteMany({ userId: id });
+    } catch (tokenError) {
+      logger.warn('token_revocation_failed', {
+        userId: id,
+        error: tokenError.message,
+      });
+    }
+    logger.info('user_status_changed_tokens_revoked', {
+      userId: id,
+      email: user.email,
+      role: user.role,
+      newStatus: 'inactive',
+      changedBy: caller.email,
+    });
+  } else {
+    logger.info('user_status_changed', {
+      userId: id,
+      email: user.email,
+      role: user.role,
+      newStatus: 'active',
+      changedBy: caller.email,
+    });
+  }
+
+  return { message: `User ${isActive ? 'activated' : 'deactivated'} successfully` };
 };
 
 module.exports = {
