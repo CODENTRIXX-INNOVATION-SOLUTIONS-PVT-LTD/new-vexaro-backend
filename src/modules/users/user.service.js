@@ -626,9 +626,21 @@ const updateUserStatusService = async (id, { isActive }, caller) => {
     throw new Error('You cannot change your own account status');
   }
 
-  // Only Super Admin can change status
-  if (caller.role !== UserRole.SUPER_ADMIN) {
-    throw new Error('Only Super Admin can change user status');
+  // Super Admin can change any user's status
+  if (caller.role === UserRole.SUPER_ADMIN) {
+    // Super Admin has full access, proceed
+  }
+  // Distributor can only change status of their own merchants
+  else if (caller.role === UserRole.DISTRIBUTOR) {
+    if (user.role !== UserRole.MERCHANT) {
+      throw new Error('Distributors can only change status of merchants');
+    }
+    if (user.invitedBy?.toString() !== caller.userId) {
+      throw new Error('You can only change status of merchants you invited');
+    }
+  }
+  else {
+    throw new Error('Access denied');
   }
 
   user.isActive = isActive;
@@ -647,17 +659,15 @@ const updateUserStatusService = async (id, { isActive }, caller) => {
     logger.info('user_status_changed_tokens_revoked', {
       userId: id,
       email: user.email,
-      role: user.role,
-      newStatus: 'inactive',
-      changedBy: caller.email,
+      revokedBy: caller.userId,
+      changedByRole: caller.role,
     });
   } else {
-    logger.info('user_status_changed', {
+    logger.info('user_status_changed_activated', {
       userId: id,
       email: user.email,
-      role: user.role,
-      newStatus: 'active',
-      changedBy: caller.email,
+      activatedBy: caller.userId,
+      changedByRole: caller.role,
     });
   }
 
