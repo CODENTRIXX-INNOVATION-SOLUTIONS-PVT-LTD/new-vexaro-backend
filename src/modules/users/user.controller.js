@@ -8,6 +8,7 @@ const {
   reactivateUserService,
   getWarehouseService,
   updateWarehouseService,
+  updateUserStatusService,
 } = require('./user.service');
 const { success, created, paginated } = require('../../utils');
 const { wrapController } = require('../../utils/errors');
@@ -75,6 +76,13 @@ const updateWarehouse = withErrorHandling(async (req, res) => {
   success(res, 'Warehouse updated successfully', warehouse);
 });
 
+// ─── PATCH /api/users/:id/status ───────────────────────────────────────────────
+const updateUserStatus = withErrorHandling(async (req, res) => {
+  const dto = req.validated.body;
+  const result = await updateUserStatusService(req.params.id, dto, req.user);
+  success(res, result.message);
+});
+
 module.exports = {
   inviteUser,
   listUsers,
@@ -85,4 +93,5 @@ module.exports = {
   reactivateUser,
   getWarehouse,
   updateWarehouse,
+  updateUserStatus,
 };

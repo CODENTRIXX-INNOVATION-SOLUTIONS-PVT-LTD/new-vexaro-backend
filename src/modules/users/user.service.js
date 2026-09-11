@@ -1,5 +1,8 @@
 'use strict';
 
+const mongoose = require('mongoose');
+const { User } = require("./user.model");
+const { RefreshToken } = require("../auth/refresh-token.model");
 const userRepository = require("./user.repository");
 const warehouseRepository = require("./warehouse.repository");
 const { UserRole } = require("../../constants");
@@ -415,7 +418,6 @@ const deactivateUserService = async (id, caller) => {
   user.deletedAt = deletedAt;
 
   // Revoke all refresh tokens for this user
-  const { RefreshToken } = require("../auth/refresh-token.model");
   let revokedUserIds = [user._id];
   if (user.role === UserRole.DISTRIBUTOR) {
     const merchants = await userRepository.findAll(
@@ -612,6 +614,66 @@ const syncWarehouseToVelocityService = async (merchantId, caller) => {
   };
 };
 
+// ─── PATCH /api/users/:id/status ─────────────────────────────────────────────────────
+const updateUserStatusService = async (id, { isActive }, caller) => {
+  const user = await userRepository.findOne({ _id: id, deletedAt: null });
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  // Prevent self-status change
+  if (caller.userId === id) {
+    throw new Error('You cannot change your own account status');
+  }
+
+  // Super Admin can change any user's status
+  if (caller.role === UserRole.SUPER_ADMIN) {
+    // Super Admin has full access, proceed
+  }
+  // Distributor can only change status of their own merchants
+  else if (caller.role === UserRole.DISTRIBUTOR) {
+    if (user.role !== UserRole.MERCHANT) {
+      throw new Error('Distributors can only change status of merchants');
+    }
+    if (user.invitedBy?.toString() !== caller.userId) {
+      throw new Error('You can only change status of merchants you invited');
+    }
+  }
+  else {
+    throw new Error('Access denied');
+  }
+
+  user.isActive = isActive;
+  await userRepository.save(user);
+
+  // If deactivating, revoke all tokens (non-critical, can fail independently)
+  if (!isActive) {
+    try {
+      await RefreshToken.deleteMany({ userId: id });
+    } catch (tokenError) {
+      logger.warn('token_revocation_failed', {
+        userId: id,
+        error: tokenError.message,
+      });
+    }
+    logger.info('user_status_changed_tokens_revoked', {
+      userId: id,
+      email: user.email,
+      revokedBy: caller.userId,
+      changedByRole: caller.role,
+    });
+  } else {
+    logger.info('user_status_changed_activated', {
+      userId: id,
+      email: user.email,
+      activatedBy: caller.userId,
+      changedByRole: caller.role,
+    });
+  }
+
+  return { message: `User ${isActive ? 'activated' : 'deactivated'} successfully` };
+};
+
 module.exports = {
   inviteUserService,
   listUsersService,
@@ -623,4 +685,5 @@ module.exports = {
   getWarehouseService,
   updateWarehouseService,
   syncWarehouseToVelocityService,
+  updateUserStatusService,
 };

@@ -14,6 +14,7 @@ const {
   reactivateUser,
   getWarehouse,
   updateWarehouse,
+  updateUserStatus,
 } = require('./user.controller');
 const {
   createAddress,
@@ -26,6 +27,7 @@ const {
   getWarehouses,
   getWarehouseById,
   updateContact,
+  updateWarehouseAddress,
   createAddressChangeRequest,
   listMerchantRequests,
   listDistributorRequests,
@@ -559,6 +561,54 @@ router.patch(
 
 /**
  * @swagger
+ * /users/warehouses/{id}:
+ *   patch:
+ *     summary: Immediately update warehouse address information
+ *     tags: [Warehouse Profile Management]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               addressLine:
+ *                 type: string
+ *               city:
+ *                 type: string
+ *               state:
+ *                 type: string
+ *               pincode:
+ *                 type: string
+ *               country:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Warehouse address updated successfully
+ *       400:
+ *         description: Validation error
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Warehouse not found
+ */
+router.patch(
+  '/warehouses/:id',
+  requireRole(UserRole.MERCHANT),
+  validateRequest({ params: schemas.warehouseIdParamsSchema, body: schemas.addressChangeRequestSchema }),
+  updateWarehouseAddress,
+);
+
+/**
+ * @swagger
  * /users/warehouses/{id}/address-change-request:
  *   post:
  *     summary: Submit a warehouse address change request for distributor approval
@@ -737,6 +787,9 @@ router.post('/:id/resend-invite', validateRequest({ params: schemas.userIdParams
 
 // PATCH  /api/users/:id/reactivate — reactivate a user account
 router.patch('/:id/reactivate', validateRequest({ params: schemas.userIdParamsSchema, body: emptyObjectSchema }), reactivateUser);
+
+// PATCH  /api/users/:id/status — update user status (activate/deactivate)
+router.patch('/:id/status', requireRole(UserRole.SUPER_ADMIN, UserRole.DISTRIBUTOR), validateRequest({ params: schemas.userIdParamsSchema, body: schemas.updateUserStatusSchema }), updateUserStatus);
 
 // POST /api/users/:id/sync-warehouse — Super Admin re-syncs a merchant warehouse to Velocity
 router.post(
