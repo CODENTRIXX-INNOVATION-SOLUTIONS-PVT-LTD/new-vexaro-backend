@@ -27,6 +27,7 @@ const {
   getWarehouses,
   getWarehouseById,
   updateContact,
+  updateWarehouseAddress,
   createAddressChangeRequest,
   listMerchantRequests,
   listDistributorRequests,
@@ -556,6 +557,54 @@ router.patch(
   requireRole(UserRole.MERCHANT),
   validateRequest({ params: schemas.warehouseIdParamsSchema, body: schemas.updateContactSchema }),
   updateContact,
+);
+
+/**
+ * @swagger
+ * /users/warehouses/{id}:
+ *   patch:
+ *     summary: Immediately update warehouse address information
+ *     tags: [Warehouse Profile Management]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               addressLine:
+ *                 type: string
+ *               city:
+ *                 type: string
+ *               state:
+ *                 type: string
+ *               pincode:
+ *                 type: string
+ *               country:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Warehouse address updated successfully
+ *       400:
+ *         description: Validation error
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Warehouse not found
+ */
+router.patch(
+  '/warehouses/:id',
+  requireRole(UserRole.MERCHANT),
+  validateRequest({ params: schemas.warehouseIdParamsSchema, body: schemas.addressChangeRequestSchema }),
+  updateWarehouseAddress,
 );
 
 /**
