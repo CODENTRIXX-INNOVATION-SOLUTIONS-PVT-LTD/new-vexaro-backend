@@ -453,8 +453,12 @@ const deactivateUserService = async (id, caller) => {
 // ─── Resend Invite ───────────────────────────────────────────────────────────
 const resendInviteService = async (id, caller) => {
   const user = await findUserWithAccess(id, caller);
-  if (user.isActive) {
-    throw Object.assign(new Error("User is already active."), {
+
+  // Allow resending invitation for users who haven't completed initial setup
+  // This includes users who are active but must change credentials or have never logged in
+  const hasCompletedSetup = user.lastLoginAt && !user.mustChangeCredentials;
+  if (user.isActive && hasCompletedSetup) {
+    throw Object.assign(new Error("User is already active and has completed setup."), {
       statusCode: 400,
     });
   }
