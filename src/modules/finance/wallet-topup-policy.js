@@ -32,14 +32,15 @@ const getWalletTopupPolicy = async (wallet, role, session = null) => {
     (completedTopups >= 1 && balance >= SystemConfig.WALLET_RESERVE_START_BALANCE);
 
   if (completedTopups === 0 && !reserveEstablished) {
+    const minAmount = Math.max(1, SystemConfig.WALLET_RESERVE_START_BALANCE - balance);
     return {
-      phase: 'training_first_topup',
+      phase: 'reserve_completion_topup',
       completedTopups,
       reserveEstablished: false,
       reserveAmount: 0,
-      minAmount: SystemConfig.WALLET_TRAINING_TOPUP_MIN,
-      maxAmount: SystemConfig.WALLET_TRAINING_TOPUP_MAX,
-      message: `First training top-up can be any amount from ${formatInr(SystemConfig.WALLET_TRAINING_TOPUP_MIN)} to ${formatInr(SystemConfig.WALLET_TRAINING_TOPUP_MAX)}.`,
+      minAmount,
+      maxAmount: null,
+      message: `First top-up must be at least ${formatInr(minAmount)} so your wallet balance becomes ${formatInr(SystemConfig.WALLET_RESERVE_START_BALANCE)} and the ${formatInr(SystemConfig.WALLET_RESERVE_AMOUNT)} reserve can be maintained.`,
     };
   }
 
@@ -75,14 +76,7 @@ const validateTopupAmountForPolicy = async ({ wallet, role, amount, session = nu
 
   const policy = await getWalletTopupPolicy(wallet, role, session);
 
-  if (policy.phase === 'training_first_topup') {
-    if (numericAmount < policy.minAmount || numericAmount > policy.maxAmount) {
-      throw Object.assign(
-        new Error(`First training top-up must be between ${formatInr(policy.minAmount)} and ${formatInr(policy.maxAmount)}.`),
-        { statusCode: 400 },
-      );
-    }
-  } else if (policy.phase === 'reserve_completion_topup' && numericAmount < policy.minAmount) {
+  if (policy.phase === 'reserve_completion_topup' && numericAmount < policy.minAmount) {
     throw Object.assign(new Error(policy.message), { statusCode: 400 });
   }
 
