@@ -72,9 +72,15 @@ const updateWarehouseSchema = z.object({
   message: 'At least one field is required to update',
 });
 
+// ─── Update User Status ─────────────────────────────────────────────────────────────
+const updateUserStatusSchema = z.object({
+  isActive: z.boolean(),
+});
+
 module.exports = {
   inviteUserSchema,
   updateUserSchema,
   listUsersQuerySchema,
   updateWarehouseSchema,
+  updateUserStatusSchema,
 };

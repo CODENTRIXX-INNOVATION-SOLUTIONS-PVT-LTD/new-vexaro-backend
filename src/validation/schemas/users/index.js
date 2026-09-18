@@ -37,6 +37,7 @@ const inviteUserSchema = z.object({
 const updateUserSchema = legacy.updateUserSchema;
 const listUsersQuerySchema = legacy.listUsersQuerySchema;
 const updateWarehouseSchema = legacy.updateWarehouseSchema;
+const updateUserStatusSchema = legacy.updateUserStatusSchema;
 const userIdParamsSchema = z.object({ id: objectIdSchema });
 const addressBookSchemas = require('./address-book.schemas');
 const warehouseSchemas = require('./warehouse.schemas');
@@ -46,6 +47,7 @@ module.exports = {
   updateUserSchema,
   listUsersQuerySchema,
   updateWarehouseSchema,
+  updateUserStatusSchema,
   warehouseSchema,
   userIdParamsSchema,
   ...addressBookSchemas,

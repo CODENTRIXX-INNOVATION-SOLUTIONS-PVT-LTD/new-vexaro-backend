@@ -138,7 +138,7 @@ const COUNTRY_CODES = {
 const PHONE_ERROR_CODES = {
   INVALID_FORMAT: 'INVALID_PHONE_FORMAT',
   INVALID_INDIAN_MOBILE: 'INVALID_INDIAN_MOBILE',
-  INVALID_COUNTRY_CODE: 'INVALID_COUNTRY_CODE', 
+  INVALID_COUNTRY_CODE: 'INVALID_COUNTRY_CODE',
   INVALID_LENGTH: 'INVALID_PHONE_LENGTH',
   EMPTY_PHONE: 'EMPTY_PHONE_NUMBER',
   INVALID_CHARACTERS: 'INVALID_PHONE_CHARACTERS',
@@ -172,25 +172,29 @@ function cleanPhoneNumber(phone) {
   if (typeof phone !== 'string') {
     return '';
   }
-  
+
   // Remove all separators except + (preserve for country code)
   let cleaned = phone.replace(/[\s\-\(\)\.]/g, '');
-  
+
+  // Check if it's a valid 10-digit Indian mobile FIRST before treating as international
+  if (cleaned.match(/^[6-9]\d{9}$/)) {
+    // Pure 10-digit Indian mobile, don't add country code automatically
+    // Let the validation functions decide format
+    return cleaned;
+  }
+
   // Handle special cases for Indian numbers
   if (cleaned.startsWith('0091')) {
     cleaned = '+91' + cleaned.substring(4);
   } else if (cleaned.match(/^091[6-9]\d{9}$/)) {
     cleaned = '+91' + cleaned.substring(3);
-  } else if (cleaned.match(/^91[6-9]/)) {
+  } else if (cleaned.match(/^91[6-9]\d{9}$/)) {
+    // Only treat as international if it's 12 digits (91 + 10 digit number)
     cleaned = '+91' + cleaned.substring(2);
   } else if (cleaned.match(/^0[6-9]\d{9}$/)) {
     cleaned = cleaned.substring(1);
-  } else if (cleaned.match(/^[6-9]\d{9}$/)) {
-    // Pure 10-digit Indian mobile, don't add country code automatically
-    // Let the validation functions decide format
-    return cleaned;
   }
-  
+
   return cleaned;
 }
 
@@ -204,13 +208,13 @@ function extractCountryCode(phone) {
   if (!phone.startsWith('+')) {
     return null;
   }
-  
+
   const digits = phone.substring(1);
-  
+
   // Try different country code lengths (1-4 digits)
   for (let i = 1; i <= 4 && i <= digits.length; i++) {
     const potentialCode = parseInt(digits.substring(0, i));
-    
+
     if (COUNTRY_CODES[potentialCode]) {
       const nationalNumber = digits.substring(i);
       return {
@@ -220,7 +224,7 @@ function extractCountryCode(phone) {
       };
     }
   }
-  
+
   return null;
 }
 /**
@@ -241,12 +245,12 @@ function validateIndianMobile(phone) {
       normalized: `+91${phone}`
     };
   }
-  
+
   // Check for numbers with Indian country code
   for (const [pattern, regex] of Object.entries(INDIAN_WITH_CODE_PATTERNS)) {
     if (regex.test(phone)) {
       let nationalNumber;
-      
+
       if (pattern === 'plus91') {
         nationalNumber = phone.substring(3); // Remove +91
       } else if (pattern === 'code91') {
@@ -254,7 +258,7 @@ function validateIndianMobile(phone) {
       } else if (pattern === 'zero91') {
         nationalNumber = phone.substring(4); // Remove 0091
       }
-      
+
       return {
         isValid: true,
         type: 'indian_mobile',
@@ -265,7 +269,7 @@ function validateIndianMobile(phone) {
       };
     }
   }
-  
+
   return {
     isValid: false,
     error: PHONE_ERROR_CODES.INVALID_INDIAN_MOBILE,
@@ -295,7 +299,7 @@ function validateInternationalPhone(phone) {
       message: PHONE_ERROR_MESSAGES[PHONE_ERROR_CODES.INVALID_COUNTRY_CODE]
     };
   }
-  
+
   // Check basic E.164 format
   if (!INTERNATIONAL_E164_PATTERN.test(phone)) {
     return {
@@ -304,7 +308,7 @@ function validateInternationalPhone(phone) {
       message: 'Invalid international phone number format (E.164)'
     };
   }
-  
+
   // Extract and validate country code
   const codeInfo = extractCountryCode(phone);
   if (!codeInfo) {
@@ -314,10 +318,10 @@ function validateInternationalPhone(phone) {
       message: PHONE_ERROR_MESSAGES[PHONE_ERROR_CODES.INVALID_COUNTRY_CODE]
     };
   }
-  
+
   const { countryCode, nationalNumber, country } = codeInfo;
   const countryInfo = COUNTRY_CODES[countryCode];
-  
+
   // Validate national number length for the country
   const totalLength = nationalNumber.length;
   if (totalLength < countryInfo.minLength || totalLength > countryInfo.maxLength) {
@@ -327,7 +331,7 @@ function validateInternationalPhone(phone) {
       message: `Phone number length invalid for ${country}. Expected ${countryInfo.minLength}-${countryInfo.maxLength} digits, got ${totalLength}`
     };
   }
-  
+
   return {
     isValid: true,
     type: 'international',
@@ -354,18 +358,18 @@ function formatIndianMobile(nationalNumber, options = {}) {
     includeCountryCode = true,
     separator = ' '
   } = options;
-  
+
   if (!nationalNumber || nationalNumber.length !== 10) {
     return nationalNumber;
   }
-  
+
   // Format as XXXXX XXXXX
   const formatted = `${nationalNumber.substring(0, 5)}${separator}${nationalNumber.substring(5)}`;
-  
+
   if (includeCountryCode) {
     return `+91${separator}${formatted}`;
   }
-  
+
   return formatted;
 }
 
@@ -380,7 +384,7 @@ function formatIndianMobile(nationalNumber, options = {}) {
  */
 function formatInternationalPhone(countryCode, nationalNumber, options = {}) {
   const { separator = ' ' } = options;
-  
+
   // Basic formatting - country code + national number
   // Advanced formatting could be added per country if needed
   if (nationalNumber.length >= 6) {
@@ -389,7 +393,7 @@ function formatInternationalPhone(countryCode, nationalNumber, options = {}) {
     const secondPart = nationalNumber.substring(Math.ceil(nationalNumber.length / 2));
     return `+${countryCode}${separator}${firstPart}${separator}${secondPart}`;
   }
-  
+
   return `+${countryCode}${separator}${nationalNumber}`;
 }
 
@@ -414,7 +418,7 @@ function validatePhone(phone, options = {}) {
     allowInternational = true,
     requireIndian = false,
   } = options;
-  
+
   // Input validation
   if (!phone || typeof phone !== 'string') {
     return {
@@ -424,10 +428,10 @@ function validatePhone(phone, options = {}) {
       input: phone
     };
   }
-  
+
   // Clean the input
   const cleaned = cleanPhoneNumber(phone.trim());
-  
+
   if (!cleaned) {
     return {
       isValid: false,
@@ -436,7 +440,7 @@ function validatePhone(phone, options = {}) {
       input: phone
     };
   }
-  
+
   // Check for invalid characters (only digits and + allowed)
   if (!/^[\+\d]+$/.test(cleaned)) {
     return {
@@ -455,7 +459,7 @@ function validatePhone(phone, options = {}) {
       cleaned: cleaned
     };
   }
-  
+
   // If requireIndian is true, don't try international validation
   if (requireIndian) {
     return {
@@ -464,7 +468,7 @@ function validatePhone(phone, options = {}) {
       cleaned: cleaned
     };
   }
-  
+
   // Priority 2: Try international validation if allowed
   if (allowInternational) {
     // For international numbers, ensure they start with +
@@ -475,7 +479,7 @@ function validatePhone(phone, options = {}) {
         internationalPhone = '+' + cleaned;
       }
     }
-    
+
     if (internationalPhone.startsWith('+')) {
       const internationalResult = validateInternationalPhone(internationalPhone);
       if (internationalResult.isValid) {
@@ -485,7 +489,7 @@ function validatePhone(phone, options = {}) {
           cleaned: cleaned
         };
       }
-      
+
       // Return international error if it was clearly intended as international
       if (cleaned.startsWith('+') || cleaned.length > 12) {
         return {
@@ -507,7 +511,7 @@ function validatePhone(phone, options = {}) {
       };
     }
   }
-  
+
   // If we get here, neither format worked - return the Indian error since it's primary
   return {
     ...indianResult,
@@ -527,7 +531,7 @@ function validatePhone(phone, options = {}) {
  */
 function normalizePhone(phone, options = {}) {
   const validation = validatePhone(phone, options);
-  
+
   if (!validation.isValid) {
     return {
       isValid: false,
@@ -536,7 +540,7 @@ function normalizePhone(phone, options = {}) {
       original: phone
     };
   }
-  
+
   return {
     isValid: true,
     original: phone,
@@ -559,9 +563,9 @@ function normalizePhone(phone, options = {}) {
  */
 function formatPhone(phone, options = {}) {
   const { format = 'display' } = options;
-  
+
   const validation = validatePhone(phone, options);
-  
+
   if (!validation.isValid) {
     return {
       isValid: false,
@@ -570,9 +574,9 @@ function formatPhone(phone, options = {}) {
       original: phone
     };
   }
-  
+
   let formatted;
-  
+
   switch (format) {
     case 'international':
       formatted = validation.normalized;
@@ -585,7 +589,7 @@ function formatPhone(phone, options = {}) {
       formatted = validation.formatted;
       break;
   }
-  
+
   return {
     isValid: true,
     original: phone,
@@ -626,16 +630,16 @@ function isInternationalPhone(phone) {
  */
 function getCountryInfo(phone) {
   const result = validatePhone(phone);
-  
+
   if (!result.isValid) {
     return null;
   }
-  
+
   const countryData = COUNTRY_CODES[result.countryCode];
   if (!countryData) {
     return null;
   }
-  
+
   return {
     countryCode: result.countryCode,
     country: result.country || countryData.country,
@@ -655,7 +659,7 @@ function validatePhonesBatch(phones, options = {}) {
   if (!Array.isArray(phones)) {
     throw new Error('Input must be an array of phone numbers');
   }
-  
+
   return phones.map((phone, index) => ({
     index,
     phone,
@@ -695,33 +699,33 @@ module.exports = {
   validatePhone,
   normalizePhone,
   formatPhone,
-  
+
   // Utility functions
   cleanPhoneNumber,
   isIndianMobile,
   isInternationalPhone,
   getCountryInfo,
   validatePhonesBatch,
-  
+
   // Formatting functions
   formatIndianMobile,
   formatInternationalPhone,
-  
+
   // Internal validation functions (for testing)
   validateIndianMobile,
   validateInternationalPhone,
   extractCountryCode,
-  
+
   // Zod integration
   createPhoneSchema,
-  
+
   // Constants and configuration
   PHONE_ERROR_CODES,
   PHONE_ERROR_MESSAGES,
   COUNTRY_CODES,
   INDIAN_MOBILE_PATTERN,
   INTERNATIONAL_E164_PATTERN,
-  
+
   // Patterns for external use
   patterns: {
     INDIAN_MOBILE_PATTERN,
