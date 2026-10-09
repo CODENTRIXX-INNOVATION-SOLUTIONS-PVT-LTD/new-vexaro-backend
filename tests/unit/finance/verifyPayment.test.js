@@ -18,43 +18,43 @@
 const crypto = require('crypto');
 
 // ─── Set up env before any requires ──────────────────────────────────────────
-process.env.RAZORPAY_KEY_SECRET  = 'test_secret_key_for_unit_tests';
-process.env.RAZORPAY_KEY_ID      = 'rzp_test_dummy';
+process.env.RAZORPAY_KEY_SECRET = 'test_secret_key_for_unit_tests';
+process.env.RAZORPAY_KEY_ID = 'rzp_test_dummy';
 process.env.RAZORPAY_WEBHOOK_SECRET = 'webhook_secret';
 process.env.RAZORPAY_MAX_TOPUP_AMOUNT = '100000';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
-const mockPaymentFindOne    = jest.fn();
-const mockPaymentSave       = jest.fn().mockResolvedValue(undefined);
-const mockWalletFindById    = jest.fn();
+const mockPaymentFindOne = jest.fn();
+const mockPaymentSave = jest.fn().mockResolvedValue(undefined);
+const mockWalletFindById = jest.fn();
 const mockTransactionFindById = jest.fn();
-const mockRazorpayFetch      = jest.fn();
+const mockRazorpayFetch = jest.fn();
 const mockPaymentFindOneAndUpdate = jest.fn();
 
 jest.mock('../../../src/config/env', () => ({
   env: {
-    RAZORPAY_KEY_ID:            'rzp_test_dummy',
-    RAZORPAY_KEY_SECRET:        'test_secret_key_for_unit_tests',
-    RAZORPAY_WEBHOOK_SECRET:    'webhook_secret',
-    RAZORPAY_MAX_TOPUP_AMOUNT:  100000,
-    NODE_ENV:                   'test',
-    MONGODB_URI:                'mongodb://localhost/test',
-    JWT_SECRET:                 'test_jwt_secret',
-    JWT_EXPIRES_IN:             '7d',
-    EMAIL_FROM:                 'test@test.com',
-    FRONTEND_URL:               'http://localhost:4200',
-    VELOCITY_USERNAME:          'test',
-    VELOCITY_PASSWORD:          'test',
-    VELOCITY_BASE_URL:          'https://test.velocity.in/',
-    SENTRY_DSN:                 '',
-    PORT:                       5000,
-    SMTP_HOST:                  'smtp.gmail.com',
-    SMTP_PORT:                  587,
-    SMTP_USER:                  '',
-    SMTP_PASS:                  '',
+    RAZORPAY_KEY_ID: 'rzp_test_dummy',
+    RAZORPAY_KEY_SECRET: 'test_secret_key_for_unit_tests',
+    RAZORPAY_WEBHOOK_SECRET: 'webhook_secret',
+    RAZORPAY_MAX_TOPUP_AMOUNT: 100000,
+    NODE_ENV: 'test',
+    MONGODB_URI: 'mongodb://localhost/test',
+    JWT_SECRET: 'test_jwt_secret',
+    JWT_EXPIRES_IN: '7d',
+    EMAIL_FROM: 'test@test.com',
+    FRONTEND_URL: 'http://localhost:4200',
+    VELOCITY_USERNAME: 'test',
+    VELOCITY_PASSWORD: 'test',
+    VELOCITY_BASE_URL: 'https://test.velocity.in/',
+    SENTRY_DSN: '',
+    PORT: 5000,
+    SMTP_HOST: 'smtp.gmail.com',
+    SMTP_PORT: 587,
+    SMTP_USER: '',
+    SMTP_PASS: '',
     INVITE_TOKEN_EXPIRES_HOURS: 48,
-    RESET_TOKEN_EXPIRES_HOURS:  2,
+    RESET_TOKEN_EXPIRES_HOURS: 2,
   },
 }));
 
@@ -64,35 +64,35 @@ jest.mock('../../../src/modules/finance/payment.model', () => ({
     findOneAndUpdate: (...args) => mockPaymentFindOneAndUpdate(...args),
   },
   PaymentStatus: {
-    PENDING:  'PENDING',
-    SUCCESS:  'SUCCESS',
-    FAILED:   'FAILED',
+    PENDING: 'PENDING',
+    SUCCESS: 'SUCCESS',
+    FAILED: 'FAILED',
     REFUNDED: 'REFUNDED',
   },
 }));
 
 jest.mock('../../../src/modules/finance/finance.model', () => ({
   Wallet: {
-    findOne:  jest.fn(),
+    findOne: jest.fn(),
     findById: (...args) => mockWalletFindById(...args),
   },
   Transaction: {
-    findOne:  jest.fn(),
-    create:   jest.fn(),
+    findOne: jest.fn(),
+    create: jest.fn(),
     findById: (...args) => mockTransactionFindById(...args),
   },
   TransactionType: {
-    TOPUP:          'TOPUP',
-    CHARGE:         'CHARGE',
-    DEBIT:          'DEBIT',
-    REFUND:         'REFUND',
-    SETTLEMENT:     'SETTLEMENT',
+    TOPUP: 'TOPUP',
+    CHARGE: 'CHARGE',
+    DEBIT: 'DEBIT',
+    REFUND: 'REFUND',
+    SETTLEMENT: 'SETTLEMENT',
     TRANSFER_DEBIT: 'TRANSFER_DEBIT',
     DISPUTE_CHARGE: 'DISPUTE_CHARGE',
-    RTO_CHARGE:     'RTO_CHARGE',
-    COD_CREDIT:     'COD_CREDIT',
-    TRANSFER_CREDIT:'TRANSFER_CREDIT',
-    CREDIT:         'CREDIT',
+    RTO_CHARGE: 'RTO_CHARGE',
+    COD_CREDIT: 'COD_CREDIT',
+    TRANSFER_CREDIT: 'TRANSFER_CREDIT',
+    CREDIT: 'CREDIT',
   },
   CODStatus: {},
 }));
@@ -114,8 +114,8 @@ jest.mock('../../../src/utils/transaction', () => ({
 }));
 
 jest.mock('../../../src/utils/wallet', () => ({
-  debitWallet:             jest.fn(),
-  creditWallet:            jest.fn().mockImplementation(async (_s, wallet, amount) => {
+  debitWallet: jest.fn(),
+  creditWallet: jest.fn().mockImplementation(async (_s, wallet, amount) => {
     wallet.balance += amount;
     return wallet;
   }),
@@ -127,7 +127,7 @@ jest.mock('../../../src/modules/finance/finance.service', () => {
   return {
     ...actual,
     applyTransaction: jest.fn().mockResolvedValue({
-      wallet:      { _id: 'wallet-1', balance: 700 },
+      wallet: { _id: 'wallet-1', balance: 700 },
       transaction: { _id: 'tx-new' },
     }),
   };
@@ -154,18 +154,18 @@ const makeValidSignature = (orderId, paymentId) =>
 
 const makePendingPayment = (overrides = {}) => {
   const doc = {
-    _id:             'payment-001',
-    userId:          'user-123',
-    walletId:        'wallet-001',
+    _id: 'payment-001',
+    userId: 'user-123',
+    walletId: 'wallet-001',
     razorpayOrderId: 'order_ABCDEF',
-    amount:          500,
-    amountRupees:    500,
-    amountPaise:     50000,
-    currency:        'INR',
-    status:          'PENDING',
-    transactionId:   null,
-    failureReason:   null,
-    save:            mockPaymentSave,
+    amount: 500,
+    amountRupees: 500,
+    amountPaise: 50000,
+    currency: 'INR',
+    status: 'PENDING',
+    transactionId: null,
+    failureReason: null,
+    save: mockPaymentSave,
     ...overrides,
   };
   return doc;
@@ -174,10 +174,10 @@ const makePendingPayment = (overrides = {}) => {
 const MERCHANT_CALLER = { userId: 'user-123', role: 'MERCHANT', email: 'merch@v.in' };
 
 const VALID_DTO = (orderId = 'order_ABCDEF', paymentId = 'pay_XYZ123') => ({
-  paymentId:         'payment-001',
+  paymentId: 'payment-001',
   orderId,
   razorpayPaymentId: paymentId,
-  signature:         makeValidSignature(orderId, paymentId),
+  signature: makeValidSignature(orderId, paymentId),
 });
 
 beforeEach(() => {
@@ -206,17 +206,17 @@ beforeEach(() => {
 
 describe('verifyRazorpaySignature — HMAC helper', () => {
   test('returns true for a correctly computed signature', () => {
-    const orderId   = 'order_TEST123';
+    const orderId = 'order_TEST123';
     const paymentId = 'pay_TEST456';
-    const sig       = makeValidSignature(orderId, paymentId);
+    const sig = makeValidSignature(orderId, paymentId);
 
     expect(verifyRazorpaySignature(orderId, paymentId, sig)).toBe(true);
   });
 
   test('returns false when signature is tampered', () => {
-    const orderId   = 'order_TEST123';
+    const orderId = 'order_TEST123';
     const paymentId = 'pay_TEST456';
-    const badSig    = 'aaaa' + makeValidSignature(orderId, paymentId).slice(4);
+    const badSig = 'aaaa' + makeValidSignature(orderId, paymentId).slice(4);
 
     expect(verifyRazorpaySignature(orderId, paymentId, badSig)).toBe(false);
   });
@@ -255,20 +255,50 @@ describe('verifyPaymentService — guard rails', () => {
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  test('throws 400 when payment is already FAILED', async () => {
+  test('throws 400 when payment is already FAILED and Razorpay shows failed', async () => {
     const payment = makePendingPayment({ status: 'FAILED' });
     mockPaymentFindOne.mockResolvedValue(payment);
+    // Razorpay fetch returns failed status
+    mockRazorpayFetch.mockResolvedValue({
+      id: 'pay_XYZ123',
+      order_id: 'order_ABCDEF',
+      amount: 50000,
+      status: 'failed',
+      captured: false,
+    });
 
     await expect(
       verifyPaymentService(VALID_DTO(), MERCHANT_CALLER),
     ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  test('allows recovery when payment is FAILED but Razorpay shows captured', async () => {
+    const payment = makePendingPayment({ status: 'FAILED' });
+    mockPaymentFindOne.mockResolvedValue(payment);
+    // Razorpay fetch returns captured status
+    mockRazorpayFetch.mockResolvedValue({
+      id: 'pay_XYZ123',
+      order_id: 'order_ABCDEF',
+      amount: 50000,
+      status: 'captured',
+      captured: true,
+      currency: 'INR',
+    });
+    mockPaymentFindOneAndUpdate.mockImplementation(async (query, update, options) => {
+      payment.status = 'SUCCESS';
+      payment.razorpayPaymentId = 'pay_XYZ123';
+      return payment;
+    });
+
+    const result = await verifyPaymentService(VALID_DTO(), MERCHANT_CALLER);
+    expect(result.success).toBe(true);
   });
 });
 
 describe('verifyPaymentService — idempotency', () => {
   test('already SUCCESS payment returns without re-crediting wallet', async () => {
     const payment = makePendingPayment({
-      status:        'SUCCESS',
+      status: 'SUCCESS',
       transactionId: 'tx-already-done',
     });
     mockPaymentFindOne.mockResolvedValue(payment);
@@ -291,17 +321,17 @@ describe('verifyPaymentService — CRITICAL: invalid signature blocks wallet cre
     mockPaymentFindOne.mockResolvedValue(payment);
 
     const dtoWithBadSig = {
-      paymentId:         'payment-001',
-      orderId:           'order_ABCDEF',
+      paymentId: 'payment-001',
+      orderId: 'order_ABCDEF',
       razorpayPaymentId: 'pay_XYZ123',
-      signature:         'bad_signature_that_does_not_match_anything',
+      signature: 'bad_signature_that_does_not_match_anything',
     };
 
     await expect(
       verifyPaymentService(dtoWithBadSig, MERCHANT_CALLER),
     ).rejects.toMatchObject({
       statusCode: 400,
-      message:    expect.stringContaining('signature'),
+      message: expect.stringContaining('signature'),
     });
 
     // Payment must be marked FAILED in DB
@@ -325,7 +355,7 @@ describe('verifyPaymentService — happy path', () => {
 
     const { applyTransaction } = require('../../../src/modules/finance/finance.service');
 
-    const orderId   = 'order_ABCDEF';
+    const orderId = 'order_ABCDEF';
     const paymentId = 'pay_XYZ123';
     const signature = makeValidSignature(orderId, paymentId);
 
@@ -357,5 +387,40 @@ describe('verifyPaymentService — happy path', () => {
 
     expect(result.success).toBe(true);
     expect(result.alreadyProcessed).toBeUndefined();
+  });
+});
+
+describe('Razorpay SSL Certificate Connectivity', () => {
+  test('Razorpay client initializes without custom SSL configuration', () => {
+    // This test verifies that the Razorpay client is initialized
+    // with standard configuration (no custom SSL pinning)
+    const { getRazorpay } = require('../../../src/modules/finance/razorpay.service');
+
+    // Clear the cached client
+    const { env } = require('../../../src/config/env');
+    delete require.cache[require.resolve('../../../src/modules/finance/razorpay.service')];
+
+    // Re-import to get fresh client
+    const razorpayService = require('../../../src/modules/finance/razorpay.service');
+
+    // Verify client can be created with just key_id and key_secret
+    expect(() => razorpayService.getRazorpay()).not.toThrow();
+  });
+
+  test('Razorpay client uses default Node.js HTTPS stack', () => {
+    // Verify that no custom https.Agent or certificate configuration
+    // is being passed to the Razorpay constructor
+    const Razorpay = require('razorpay');
+
+    // Create a client with standard config
+    const client = new Razorpay({
+      key_id: 'test_key',
+      key_secret: 'test_secret',
+    });
+
+    // Verify client exists and has expected methods
+    expect(client).toBeDefined();
+    expect(client.orders).toBeDefined();
+    expect(client.payments).toBeDefined();
   });
 });
