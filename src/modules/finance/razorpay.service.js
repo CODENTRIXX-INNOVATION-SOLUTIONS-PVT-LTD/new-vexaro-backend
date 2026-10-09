@@ -29,10 +29,10 @@ const getRazorpay = () => {
 };
 
 const handleRazorpayError = (error) => {
-  logger.error('razorpay_api_error', { 
-    error: error.message, 
-    code: error.code, 
-    statusCode: error.statusCode 
+  logger.error('razorpay_api_error', {
+    error: error.message,
+    code: error.code,
+    statusCode: error.statusCode
   });
 
   // Map Razorpay error codes to appropriate HTTP status codes
@@ -53,10 +53,10 @@ const handleRazorpayError = (error) => {
   const statusCode = errorMap[error.code] || 502;
   const message = error.description || error.message || 'Razorpay API error';
 
-  return Object.assign(new Error(message), { 
-    statusCode, 
+  return Object.assign(new Error(message), {
+    statusCode,
     code: error.code,
-    originalError: error 
+    originalError: error
   });
 };
 
@@ -191,9 +191,11 @@ const creditCapturedPayment = async ({ payment, rzpPayment, signature = null, so
   validateCapturedPayment(payment, rzpPayment);
 
   return runInTransaction(async (session) => {
+    // Allow recovery from FAILED status when processing via webhook
+    const isRecovery = source === 'webhook_payment_captured' && payment.status === PaymentStatus.FAILED;
     const query = {
       _id: payment._id,
-      status: PaymentStatus.PENDING,
+      status: isRecovery ? PaymentStatus.FAILED : PaymentStatus.PENDING,
       transactionId: null,
     };
     const update = {
@@ -225,7 +227,7 @@ const creditCapturedPayment = async ({ payment, rzpPayment, signature = null, so
       if (existing?.status === PaymentStatus.SUCCESS) {
         return formatProcessedPayment(existing, true, session);
       }
-      if (existing?.status === PaymentStatus.FAILED) {
+      if (existing?.status === PaymentStatus.FAILED && !isRecovery) {
         throw Object.assign(new Error('This payment has already been marked as failed'), { statusCode: 400 });
       }
       throw Object.assign(new Error('Payment is already being processed'), { statusCode: 409 });
@@ -370,7 +372,25 @@ const verifyPaymentService = async (dto, caller) => {
     return formatProcessedPayment(payment, true);
   }
   if (payment.status === PaymentStatus.FAILED) {
-    throw Object.assign(new Error('This payment has already been marked as failed'), { statusCode: 400 });
+    // Allow retry if payment was marked FAILED but Razorpay shows it as captured
+    // This can happen if signature verification failed initially but payment succeeded
+    try {
+      const rzpPayment = await getRazorpay().payments.fetch(razorpayPaymentId);
+      if (rzpPayment.status === 'captured' && rzpPayment.captured === true) {
+        logger.warn('razorpay_verify_recovering_failed_payment', {
+          paymentId: payment._id,
+          razorpayOrderId,
+          razorpayPaymentId,
+          reason: 'Payment marked FAILED but Razorpay shows captured - allowing recovery',
+        });
+        // Continue with verification
+      } else {
+        throw Object.assign(new Error('This payment has already been marked as failed'), { statusCode: 400 });
+      }
+    } catch (error) {
+      if (error.statusCode) throw error; // Re-throw our custom errors
+      throw Object.assign(new Error('This payment has already been marked as failed'), { statusCode: 400 });
+    }
   }
 
   let isValidSig = false;
@@ -474,7 +494,6 @@ const handleCapturedWebhook = async (rzpPaymentFromPayload, webhookEventId) => {
     }
     return { alreadyProcessed: true };
   }
-  if (payment.status === PaymentStatus.FAILED) return { ignored: true };
 
   let rzpPayment;
   try {
@@ -483,6 +502,28 @@ const handleCapturedWebhook = async (rzpPaymentFromPayload, webhookEventId) => {
     logger.error('razorpay_webhook_fetch_payment_failed', { paymentId: razorpayPaymentId, error: error.message });
     return { ignored: true };
   }
+
+  // If payment is marked FAILED locally but Razorpay shows it as captured,
+  // override the local status and credit the wallet (recover from signature verification failure)
+  if (payment.status === PaymentStatus.FAILED) {
+    if (rzpPayment.status === 'captured' && rzpPayment.captured === true) {
+      logger.warn('razorpay_webhook_recovering_failed_payment', {
+        paymentId: payment._id,
+        razorpayOrderId: orderId,
+        razorpayPaymentId,
+        webhookEventId,
+        reason: 'Payment marked FAILED locally but Razorpay shows captured - recovering',
+      });
+      // Proceed to credit the wallet - creditCapturedPayment will handle the status update
+    } else {
+      // Payment is legitimately failed - no recovery needed
+      if (webhookEventId) {
+        await Payment.updateOne({ _id: payment._id }, { $addToSet: { webhookEventIds: webhookEventId } });
+      }
+      return { ignored: true };
+    }
+  }
+
   return creditCapturedPayment({
     payment,
     rzpPayment,
