@@ -4,6 +4,7 @@ const {
   getWarehousesService,
   getWarehouseByIdService,
   updateContactService,
+  updateAddressService,
 } = require('./warehouse.service');
 const {
   createAddressChangeRequestService,
@@ -40,6 +41,15 @@ const updateContact = withErrorHandling(async (req, res) => {
   const merchantId = req.user.userId;
   const updatedWarehouse = await updateContactService(id, dto, merchantId);
   success(res, 'Contact information updated successfully', updatedWarehouse);
+});
+
+// ─── 3.5. PATCH /api/users/warehouses/:id ────────────────────────────────────────
+const updateWarehouseAddress = withErrorHandling(async (req, res) => {
+  const { id } = req.validated.params;
+  const dto = req.validated.body;
+  const merchantId = req.user.userId;
+  const updatedWarehouse = await updateAddressService(id, dto, merchantId);
+  success(res, 'Warehouse address updated successfully', updatedWarehouse);
 });
 
 // ─── 4. POST /api/users/warehouses/:id/address-change-request ───────────────
@@ -96,6 +106,7 @@ module.exports = {
   getWarehouses,
   getWarehouseById,
   updateContact,
+  updateWarehouseAddress,
   createAddressChangeRequest,
   listMerchantRequests,
   listDistributorRequests,

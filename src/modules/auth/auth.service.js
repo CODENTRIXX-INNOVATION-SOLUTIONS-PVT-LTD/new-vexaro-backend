@@ -1,8 +1,8 @@
 'use strict';
 
-const crypto  = require('crypto');
-const bcrypt  = require('bcryptjs');
-const jwt     = require('jsonwebtoken');
+const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 const authRepository = require('./auth.repository');
 const userRepository = require('../users/user.repository');
@@ -13,14 +13,14 @@ const {
   roleToDashboardPath,
 } = require('../../utils');
 const { sendResetEmail } = require('../../utils/email');
-const { env }   = require('../../config/env');
-const logger    = require('../../utils/logger');
+const { env } = require('../../config/env');
+const logger = require('../../utils/logger');
 
 // ─── Refresh token helpers ─────────────────────────────────────────────────────
-const REFRESH_TOKEN_BYTES  = 64;          // 64 random bytes → 128-char hex string
-const REFRESH_TOKEN_DAYS   = 30;
-const ACCESS_TOKEN_EXPIRY  = '1h';        // always 1 h for access tokens
-const SALT_ROUNDS          = 12;
+const REFRESH_TOKEN_BYTES = 64;          // 64 random bytes → 128-char hex string
+const REFRESH_TOKEN_DAYS = 30;
+const ACCESS_TOKEN_EXPIRY = '1h';        // always 1 h for access tokens
+const SALT_ROUNDS = 12;
 
 /** Issue a short-lived JWT access token (always 1 h, ignores JWT_EXPIRES_IN). */
 const issueAccessToken = (user) =>
@@ -32,7 +32,7 @@ const issueAccessToken = (user) =>
 
 /** Generate raw refresh token, persist its hash, return the raw string. */
 const issueRefreshToken = async (userId) => {
-  const raw       = crypto.randomBytes(REFRESH_TOKEN_BYTES).toString('hex');
+  const raw = crypto.randomBytes(REFRESH_TOKEN_BYTES).toString('hex');
   const tokenHash = crypto.createHash('sha256').update(raw).digest('hex');
   const expiresAt = new Date(Date.now() + REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000);
 
@@ -41,7 +41,7 @@ const issueRefreshToken = async (userId) => {
 };
 
 const createSession = async (user) => {
-  const accessToken  = issueAccessToken(user);
+  const accessToken = issueAccessToken(user);
   const refreshToken = await issueRefreshToken(user._id);
 
   return {
@@ -82,8 +82,8 @@ const loginService = async (dto) => {
 
   logger.info('auth_login_success', {
     userId: user._id,
-    email:  user.email,
-    role:   user.role,
+    email: user.email,
+    role: user.role,
   });
 
   return createSession(user);
@@ -96,7 +96,7 @@ const refreshTokenService = async (rawToken) => {
   }
 
   const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
-  const stored    = await authRepository.findRefreshTokenByHash(tokenHash);
+  const stored = await authRepository.findRefreshTokenByHash(tokenHash);
 
   if (!stored) {
     throw Object.assign(new Error('Invalid refresh token'), { statusCode: 401 });
@@ -117,7 +117,7 @@ const refreshTokenService = async (rawToken) => {
   await authRepository.revokeRefreshToken(stored._id);
 
   // Issue new pair
-  const accessToken     = issueAccessToken(user);
+  const accessToken = issueAccessToken(user);
   const newRefreshToken = await issueRefreshToken(user._id);
 
   logger.info('auth_token_refreshed', { userId: user._id, email: user.email });
@@ -132,7 +132,7 @@ const logoutService = async (rawToken) => {
   }
 
   const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
-  const result    = await authRepository.revokeRefreshTokenByHash(tokenHash);
+  const result = await authRepository.revokeRefreshTokenByHash(tokenHash);
 
   if (result) {
     logger.info('auth_logout', { userId: result.userId });
@@ -156,7 +156,10 @@ const verifyInviteService = async (token) => {
       { statusCode: 410 },
     );
   }
-  if (user.isActive) {
+
+  // Allow active users who haven't completed initial setup to use invite links
+  const hasCompletedSetup = user.lastLoginAt && !user.mustChangeCredentials;
+  if (user.isActive && hasCompletedSetup) {
     throw Object.assign(
       new Error('This invite has already been used. Please sign in instead.'),
       { statusCode: 409 },
@@ -183,18 +186,22 @@ const setPasswordService = async (dto) => {
       { statusCode: 410 },
     );
   }
-  if (user.isActive) {
+
+  // Allow active users who haven't completed initial setup to use invite links
+  const hasCompletedSetup = user.lastLoginAt && !user.mustChangeCredentials;
+  if (user.isActive && hasCompletedSetup) {
     throw Object.assign(
       new Error('This invite has already been used. Please sign in instead.'),
       { statusCode: 409 },
     );
   }
 
-  user.passwordHash      = await bcrypt.hash(dto.password, SALT_ROUNDS);
-  user.isActive          = true;
-  user.inviteTokenHash   = undefined;
+  user.passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
+  user.isActive = true;
+  user.inviteTokenHash = undefined;
   user.inviteTokenExpiry = undefined;
-  user.lastLoginAt       = new Date();
+  user.lastLoginAt = new Date();
+  user.mustChangeCredentials = false; // Clear the flag since they're setting password via invite
   await authRepository.saveUser(user);
 
   const { logAuditEvent } = require('../audit/audit.service');
@@ -261,8 +268,8 @@ const resetPasswordService = async (dto) => {
     );
   }
 
-  user.passwordHash    = await bcrypt.hash(dto.password, SALT_ROUNDS);
-  user.resetTokenHash  = undefined;
+  user.passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
+  user.resetTokenHash = undefined;
   user.resetTokenExpiry = undefined;
   await authRepository.saveUser(user);
 
@@ -295,8 +302,8 @@ const changeInitialCredentialsService = async (userId, dto) => {
     throw Object.assign(new Error('Email already exists'), { statusCode: 409 });
   }
 
-  userWithPassword.email                = dto.newEmail.toLowerCase();
-  userWithPassword.passwordHash         = await bcrypt.hash(dto.newPassword, SALT_ROUNDS);
+  userWithPassword.email = dto.newEmail.toLowerCase();
+  userWithPassword.passwordHash = await bcrypt.hash(dto.newPassword, SALT_ROUNDS);
   userWithPassword.mustChangeCredentials = false;
 
   await authRepository.saveUser(userWithPassword);
