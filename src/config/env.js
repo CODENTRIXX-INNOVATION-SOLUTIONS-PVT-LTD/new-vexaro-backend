@@ -6,14 +6,16 @@ const requiredEnvVars = [
   'JWT_EXPIRES_IN',
   'EMAIL_FROM',
   'FRONTEND_URL',
-  'VELOCITY_USERNAME',
-  'VELOCITY_PASSWORD',
 ];
 
 for (const key of requiredEnvVars) {
   if (!process.env[key]) {
     throw new Error(`Missing required environment variable: ${key}`);
   }
+}
+
+if (!process.env.VELOCITY_API_KEY && (!process.env.VELOCITY_USERNAME || !process.env.VELOCITY_PASSWORD)) {
+  throw new Error('Missing Velocity configuration: either VELOCITY_API_KEY or VELOCITY_USERNAME and VELOCITY_PASSWORD must be provided');
 }
 
 // ── Security Hardening checks ──
@@ -76,15 +78,16 @@ const env = {
   RESET_TOKEN_EXPIRES_HOURS: parseInt(process.env.RESET_TOKEN_EXPIRES_HOURS || '2', 10),
 
   // ─── Razorpay ──────────────────────────────────────────────────────────────
-  RAZORPAY_KEY_ID:         process.env.RAZORPAY_KEY_ID || '',
-  RAZORPAY_KEY_SECRET:     process.env.RAZORPAY_KEY_SECRET || '',
+  RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID || '',
+  RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET || '',
   RAZORPAY_WEBHOOK_SECRET: process.env.RAZORPAY_WEBHOOK_SECRET || '',
   // Maximum single topup allowed (paise → stored as rupees in this field)
   RAZORPAY_MAX_TOPUP_AMOUNT: parseInt(process.env.RAZORPAY_MAX_TOPUP_AMOUNT || '100000', 10),
 
   // ─── Velocity Shipping ─────────────────────────────────────────────────────
-  VELOCITY_USERNAME: process.env.VELOCITY_USERNAME,
-  VELOCITY_PASSWORD: process.env.VELOCITY_PASSWORD,
+  VELOCITY_API_KEY: process.env.VELOCITY_API_KEY || '',
+  VELOCITY_USERNAME: process.env.VELOCITY_USERNAME || '',
+  VELOCITY_PASSWORD: process.env.VELOCITY_PASSWORD || '',
   VELOCITY_BASE_URL: process.env.VELOCITY_BASE_URL || 'https://shazam.velocity.in/',
   // Token Velocity sends in Authorization or x-webhook-token for webhook authentication
   VELOCITY_WEBHOOK_SECRET: process.env.VELOCITY_WEBHOOK_SECRET || '',
@@ -95,7 +98,7 @@ const env = {
   SENTRY_DSN: process.env.SENTRY_DSN || '',
 
   // ─── Redis ──────────────────────────────────────────────────────────────────
-  REDIS_URL:     process.env.REDIS_URL     || 'redis://127.0.0.1:6379',
+  REDIS_URL: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
   REDIS_ENABLED: process.env.REDIS_ENABLED !== 'false',
 };
 
