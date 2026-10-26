@@ -1,9 +1,9 @@
-const express  = require('express');
-const cors     = require('cors');
-const helmet   = require('helmet');
-const path     = require('path');
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const path = require('path');
 const compression = require('compression');
-const { env }  = require('./config/env');
+const { env } = require('./config/env');
 const { requestMiddleware } = require('./middleware/request.middleware');
 const { sanitizeMiddleware } = require('./validation/middleware/sanitize.middleware');
 const { validateRequest } = require('./validation/middleware/validation.middleware');
@@ -98,10 +98,10 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(sanitizeMiddleware({ maxDepth: 20, maxKeys: 1000 }));
 app.use('/api', generalLimiter);
-app.use('/api/v1/auth/login',           authLimiter);
+app.use('/api/v1/auth/login', authLimiter);
 app.use('/api/v1/auth/forgot-password', authLimiter);
-app.use('/api/v1/users/invite',         authLimiter);
-app.use('/api/v1/shipments',            shipmentLimiter);
+app.use('/api/v1/users/invite', authLimiter);
+app.use('/api/v1/shipments', shipmentLimiter);
 
 app.get('/health', async (_req, res) => {
   const mongoose = require('mongoose');
@@ -124,13 +124,13 @@ app.get('/health', async (_req, res) => {
 
   const healthy = mongoOk; // Redis is advisory only
   return res.status(healthy ? 200 : 503).json({
-    success:   healthy,
-    message:   healthy ? 'Vexaro API is healthy' : 'Service degraded — database unavailable',
+    success: healthy,
+    message: healthy ? 'Vexaro API is healthy' : 'Service degraded — database unavailable',
     checks: {
       mongodb: mongoOk ? 'ok' : 'error',
-      redis:   redisOk ? 'ok' : 'error',
+      redis: redisOk ? 'ok' : 'error',
     },
-    env:       env.NODE_ENV,
+    env: env.NODE_ENV,
     timestamp: new Date().toISOString(),
   });
 });

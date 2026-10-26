@@ -15,6 +15,7 @@ class VelocityBaseClient {
       url += '/';
     }
     this.baseUrl = url;
+    this.apiKey = config.apiKey || env.VELOCITY_API_KEY;
     this.username = config.username || env.VELOCITY_USERNAME;
     this.password = config.password || env.VELOCITY_PASSWORD;
     this.cachedToken = null;
@@ -23,14 +24,17 @@ class VelocityBaseClient {
 
   /**
    * Returns a valid Velocity auth token.
-   * L1: in-memory singleton (fastest — avoids Redis round-trip on every request).
-   * L2: Redis (survives process restarts, shared across worker processes).
-   * L3: Live Velocity auth-token API call.
-   *
-   * Token is refreshed 5 minutes before it expires to avoid a window where
-   * requests fail while the token is technically still valid but about to expire.
+   * Priority:
+   * 1. Direct Dashboard API Key (VELOCITY_API_KEY)
+   * 2. L1: in-memory singleton
+   * 3. L2: Redis
+   * 4. L3: Legacy auth-token endpoint (fallback)
    */
   async getAuthToken() {
+    if (this.apiKey) {
+      return this.apiKey;
+    }
+
     const { get, set, KEYS, TTL } = require('../cache');
 
     // L1 — in-process memory cache
@@ -52,7 +56,7 @@ class VelocityBaseClient {
       logger.warn('velocity_token_redis_unavailable', { error: redisErr.message });
     }
 
-    // L3 — Live fetch from Velocity
+    // L3 — Live fetch from Velocity (Legacy endpoint)
     let response;
     try {
       response = await axios.post(
@@ -94,14 +98,14 @@ class VelocityBaseClient {
 
   /**
    * Returns HTTP headers for all Velocity API calls.
-   * IMPORTANT: Velocity expects the raw token string as the Authorization value,
-   * NOT "Bearer <token>". Sending "Bearer ..." will result in 401.
+   * Velocity expects "Authorization: Bearer <your-token>"
    */
   async getHeaders() {
     const token = await this.getAuthToken();
+    const authHeader = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
     return {
       'Content-Type': 'application/json',
-      Authorization: token,   // raw token — NOT "Bearer token"
+      Authorization: authHeader,
     };
   }
 
@@ -111,6 +115,13 @@ class VelocityBaseClient {
    * performs a live re-authentication instead of replaying the dead token.
    */
   async invalidateToken() {
+    if (this.apiKey) {
+      logger.warn('velocity_api_key_unauthorized', {
+        message: 'Velocity API returned 401 with configured API key. Please verify key validity on the Velocity dashboard.',
+      });
+      return;
+    }
+
     this.cachedToken = null;
     this.tokenExpiry = null;
     try {

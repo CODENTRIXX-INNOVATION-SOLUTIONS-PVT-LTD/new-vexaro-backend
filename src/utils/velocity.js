@@ -16,6 +16,7 @@ class VelocityClient {
   }
 
   get baseUrl() { return this.baseClient.baseUrl; }
+  get apiKey() { return this.baseClient.apiKey; }
   get username() { return this.baseClient.username; }
   get password() { return this.baseClient.password; }
   get cachedToken() { return this.baseClient.cachedToken; }

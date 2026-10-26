@@ -3,6 +3,17 @@
 const axios = require('axios');
 const logger = require('../logger');
 
+function extractVelocityError(err, fallback = 'Velocity API request failed') {
+  const data = err.response?.data;
+  if (data) {
+    if (data.meta?.details) return data.meta.details;
+    if (data.meta?.message) return data.meta.message;
+    if (data.message) return data.message;
+    if (typeof data === 'string') return data;
+  }
+  return err.message || fallback;
+}
+
 class VelocityRateClient {
   constructor(baseClient) {
     this.baseClient = baseClient;
@@ -43,13 +54,13 @@ class VelocityRateClient {
             { headers: freshHeaders },
           );
         } catch (retryErr) {
-          const detail = retryErr.response?.data ? JSON.stringify(retryErr.response.data) : retryErr.message;
+          const detail = extractVelocityError(retryErr, retryErr.message);
           logger.error('velocity_serviceability_http_failed', { error: detail });
           throw Object.assign(new Error(`Velocity serviceability check failed: ${detail}`), { statusCode: 502 });
         }
       } else {
         if (httpErr.statusCode) throw httpErr;
-        const detail = httpErr.response?.data ? JSON.stringify(httpErr.response.data) : httpErr.message;
+        const detail = extractVelocityError(httpErr, httpErr.message);
         logger.error('velocity_serviceability_http_failed', { error: detail });
         throw Object.assign(new Error(`Velocity serviceability check failed: ${detail}`), { statusCode: 502 });
       }
@@ -109,13 +120,13 @@ class VelocityRateClient {
             { headers: freshHeaders },
           );
         } catch (retryErr) {
-          const detail = retryErr.response?.data ? JSON.stringify(retryErr.response.data) : retryErr.message;
+          const detail = extractVelocityError(retryErr, retryErr.message);
           logger.error('velocity_rates_http_failed', { error: detail });
           throw Object.assign(new Error(`Velocity rates fetch failed: ${detail}`), { statusCode: 502 });
         }
       } else {
         if (httpErr.statusCode) throw httpErr;
-        const detail = httpErr.response?.data ? JSON.stringify(httpErr.response.data) : httpErr.message;
+        const detail = extractVelocityError(httpErr, httpErr.message);
         logger.error('velocity_rates_http_failed', { error: detail });
         throw Object.assign(new Error(`Velocity rates fetch failed: ${detail}`), { statusCode: 502 });
       }
