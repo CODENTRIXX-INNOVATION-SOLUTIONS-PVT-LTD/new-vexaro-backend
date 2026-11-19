@@ -59,6 +59,18 @@ const VELOCITY_EVENT_MAP = {
   rejected:            ShipmentStatus.CANCELLED,
   cancelled:           ShipmentStatus.CANCELLED,
   cancel:              ShipmentStatus.CANCELLED,
+  pickup_cancelled:    ShipmentStatus.CANCELLED,
+  pickupcancelled:     ShipmentStatus.CANCELLED,
+  cancellation_client: ShipmentStatus.CANCELLED,
+  cancelled_by_client: ShipmentStatus.CANCELLED,
+  pickup_failed:       ShipmentStatus.DELIVERY_FAILED,
+  pickupfailed:        ShipmentStatus.DELIVERY_FAILED,
+  pickup_rescheduled:  ShipmentStatus.ORDER_CREATED,
+  pickuprescheduled:   ShipmentStatus.ORDER_CREATED,
+  readyforreceive:     ShipmentStatus.ORDER_CREATED,
+  ready_for_receive:   ShipmentStatus.ORDER_CREATED,
+  pickup_awaited:      ShipmentStatus.ORDER_CREATED,
+  pickup_requested:    ShipmentStatus.ORDER_CREATED,
 };
 
 /**
