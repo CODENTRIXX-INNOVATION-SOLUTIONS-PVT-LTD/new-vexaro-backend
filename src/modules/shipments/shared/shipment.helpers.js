@@ -1,7 +1,17 @@
 'use strict';
 
+const mongoose = require('mongoose');
 const { Shipment } = require('../shipment.model');
 const { UserRole } = require('../../../constants');
+
+const toObjectId = (val) => {
+  if (!val) return val;
+  if (val instanceof mongoose.Types.ObjectId) return val;
+  if (typeof val === 'string' && mongoose.Types.ObjectId.isValid(val)) {
+    return new mongoose.Types.ObjectId(val);
+  }
+  return val;
+};
 
 /**
  * Build a Mongoose filter scoped to what the caller is allowed to see.
@@ -16,23 +26,23 @@ const buildShipmentFilter = (caller, query = {}) => {
   // Scope by role first
   switch (caller.role) {
     case UserRole.DISTRIBUTOR:
-      filter.distributorId = caller.userId;
-      if (mId) filter.merchantId = mId;
+      filter.distributorId = toObjectId(caller.userId);
+      if (mId) filter.merchantId = toObjectId(mId);
       break;
     case UserRole.MERCHANT:
-      filter.merchantId = caller.userId;
+      filter.merchantId = toObjectId(caller.userId);
       break;
     case UserRole.WAREHOUSE:
-      filter.warehouseId = caller.userId;
+      filter.warehouseId = toObjectId(caller.userId);
       break;
     // SUPER_ADMIN: no forced scope, but allow optional query filters below
   }
 
   // SA can optionally narrow down by these
   if (caller.role === UserRole.SUPER_ADMIN) {
-    if (mId) filter.merchantId    = mId;
-    if (dId) filter.distributorId = dId;
-    if (wId) filter.warehouseId   = wId;
+    if (mId) filter.merchantId    = toObjectId(mId);
+    if (dId) filter.distributorId = toObjectId(dId);
+    if (wId) filter.warehouseId   = toObjectId(wId);
   }
 
   // Common optional filters available to all roles

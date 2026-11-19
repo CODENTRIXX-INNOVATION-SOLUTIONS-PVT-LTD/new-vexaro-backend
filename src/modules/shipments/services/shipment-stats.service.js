@@ -34,7 +34,25 @@ const bucketStatus = (status) => {
 
 const calculateShipmentStats = async (caller, query = {}) => {
   const baseFilter = buildShipmentFilter(caller, query);
-    const todayStart = new Date();
+
+  // Best-effort live reconciliation with Velocity for active (non-terminal) shipments
+  try {
+    const activeVelocityShipments = await Shipment.find({
+      ...baseFilter,
+      velocityBooked: true,
+      carrierAWB: { $exists: true, $ne: null },
+      status: { $nin: [ShipmentStatus.DELIVERED, ShipmentStatus.CANCELLED, ShipmentStatus.RTO] },
+    }).limit(25);
+
+    if (activeVelocityShipments.length > 0) {
+      const { syncListedShipmentsFromVelocity } = require('./shipment-velocity-sync.service');
+      await syncListedShipmentsFromVelocity(activeVelocityShipments);
+    }
+  } catch (_syncErr) {
+    // Non-fatal: if Velocity is unreachable, calculate stats from existing records
+  }
+
+  const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
     const recentDays = buildRecentDays(7);

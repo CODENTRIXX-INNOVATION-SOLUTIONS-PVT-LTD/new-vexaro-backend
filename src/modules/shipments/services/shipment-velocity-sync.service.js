@@ -18,6 +18,27 @@ const firstNonEmpty = (...values) => values.find((value) => (
 const getTrackingStatus = (tracking) => {
   if (!tracking || typeof tracking !== 'object') return null;
 
+  const td = tracking.tracking_data;
+  let tdObjStatus = null;
+  if (td && typeof td === 'object' && !Array.isArray(td)) {
+    const trackItem = Array.isArray(td.shipment_track) && td.shipment_track.length > 0
+      ? td.shipment_track[0]
+      : null;
+    const latestActivity = Array.isArray(td.shipment_track_activities) && td.shipment_track_activities.length > 0
+      ? td.shipment_track_activities[0]?.activity
+      : null;
+
+    tdObjStatus = firstNonEmpty(
+      td.shipment_status,
+      td.current_status,
+      td.status,
+      td.track_status,
+      trackItem?.current_status,
+      trackItem?.status,
+      latestActivity,
+    );
+  }
+
   const events = Array.isArray(tracking.tracking_data)
     ? tracking.tracking_data
     : Array.isArray(tracking.trackings)
@@ -26,6 +47,7 @@ const getTrackingStatus = (tracking) => {
   const latestEvent = events.length > 0 ? events[events.length - 1] : null;
 
   return firstNonEmpty(
+    tdObjStatus,
     tracking.status,
     tracking.shipment_status,
     tracking.current_status,
@@ -33,6 +55,7 @@ const getTrackingStatus = (tracking) => {
     tracking.sub_status,
     latestEvent?.status,
     latestEvent?.shipment_status,
+    latestEvent?.current_status,
   ) || null;
 };
 
